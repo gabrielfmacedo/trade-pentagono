@@ -6,25 +6,24 @@ interface SelectionScreenProps {
   scenarios: Scenario[];
   onSelect: (s: Scenario) => void;
   onCreateNew: () => void;
+  onEditScenarios: () => void;
+  onShowAdmin: () => void;
+  onLogout: () => void;
   isAdmin?: boolean;
 }
 
-const SelectionScreen: React.FC<SelectionScreenProps> = ({ scenarios, onSelect, onCreateNew, isAdmin = false }) => {
+const SelectionScreen: React.FC<SelectionScreenProps> = ({ scenarios, onSelect, onCreateNew, onEditScenarios, onShowAdmin, onLogout, isAdmin = false }) => {
   const [filterStreet, setFilterStreet] = useState<string>('ALL');
   const [filterStack, setFilterStack] = useState<string>('ALL');
   const [filterSpot, setFilterSpot] = useState<string>('ALL');
   const [filterPlayers, setFilterPlayers] = useState<string>('ALL');
   const [filterPos, setFilterPos] = useState<string>('ALL');
 
-  // Dados dinâmicos extraídos dos cenários cadastrados
-  // Fix: Explicitly type sort parameters to avoid arithmetic operation errors
   const uniqueStacks = useMemo(() => Array.from(new Set(scenarios.map(s => s.stackBB))).sort((a: number, b: number) => a - b), [scenarios]);
   const uniqueSpots = useMemo(() => {
     const spots = new Set(scenarios.map(s => s.preflopAction.toUpperCase()));
-    // Garante que as opções solicitadas apareçam se existirem nos dados (independente de case)
     return Array.from(spots).sort();
   }, [scenarios]);
-  // Fix: Ensure numeric types for sort parameters to avoid arithmetic operation errors
   const uniquePlayers = useMemo(() => Array.from(new Set(scenarios.map(s => s.playerCount))).sort((a: number, b: number) => b - a), [scenarios]);
   const uniquePositions = useMemo(() => Array.from(new Set(scenarios.map(s => s.heroPos))).sort(), [scenarios]);
 
@@ -64,19 +63,40 @@ const SelectionScreen: React.FC<SelectionScreenProps> = ({ scenarios, onSelect, 
             <p className="text-gray-500 font-bold tracking-widest uppercase text-[9px] md:text-[10px]"> • SIMULADORES DE CENÁRIOS</p>
           </div>
           
-          {isAdmin && (
+          <div className="flex flex-wrap md:flex-nowrap items-center gap-2 md:gap-3">
+            {isAdmin && (
+              <>
+                <button 
+                  onClick={onCreateNew}
+                  className="px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-emerald-400 transition-all flex items-center justify-center min-w-[110px]"
+                >
+                  Novo Cenário
+                </button>
+                <button 
+                  onClick={onEditScenarios}
+                  className="px-4 py-2.5 bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-sky-400 transition-all flex items-center justify-center min-w-[110px]"
+                >
+                  Editar Cenários
+                </button>
+                <button 
+                  onClick={onShowAdmin}
+                  className="px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-emerald-400 transition-all flex items-center justify-center min-w-[110px]"
+                >
+                  ADMIN
+                </button>
+              </>
+            )}
             <button 
-              onClick={onCreateNew}
-              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 border border-emerald-400 rounded-xl flex items-center gap-3 transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+              onClick={onLogout}
+              className="px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white transition-all flex items-center justify-center min-w-[110px]"
             >
-              <span className="text-[10px] md:text-xs font-black uppercase tracking-widest">Novo Cenário</span>
+              Sair
             </button>
-          )}
+          </div>
         </div>
 
         <div className="bg-[#0f0f0f] border border-white/5 rounded-[24px] md:rounded-[32px] p-4 md:p-6 mb-6 md:mb-8 shrink-0 shadow-2xl overflow-x-auto no-scrollbar">
           <div className="flex flex-row md:flex-wrap items-end gap-4 md:gap-6 min-w-max md:min-w-0">
-            {/* Filtro Street: Mantido */}
             <div className="flex flex-col gap-2">
               <label className="text-[9px] text-gray-500 font-black uppercase tracking-widest ml-1">Street</label>
               <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
@@ -88,7 +108,6 @@ const SelectionScreen: React.FC<SelectionScreenProps> = ({ scenarios, onSelect, 
               </div>
             </div>
 
-            {/* Filtro Stack: Dinâmico baseado nos cenários */}
             <div className="flex flex-col gap-2">
               <label className="text-[9px] text-gray-500 font-black uppercase tracking-widest ml-1">Stack (BB)</label>
               <select value={filterStack} onChange={(e) => setFilterStack(e.target.value)} className="bg-black/40 border border-white/5 rounded-xl px-4 py-2.5 text-[9px] md:text-[10px] font-black uppercase tracking-widest outline-none focus:border-emerald-500/50 transition-all text-gray-300 min-w-[120px]">
@@ -99,19 +118,16 @@ const SelectionScreen: React.FC<SelectionScreenProps> = ({ scenarios, onSelect, 
               </select>
             </div>
 
-            {/* Filtro Ação (Spot): Dinâmico + Opções Específicas */}
             <div className="flex flex-col gap-2">
               <label className="text-[9px] text-gray-500 font-black uppercase tracking-widest ml-1">Ação / Spot</label>
               <select value={filterSpot} onChange={(e) => setFilterSpot(e.target.value)} className="bg-black/40 border border-white/5 rounded-xl px-4 py-2.5 text-[9px] md:text-[10px] font-black uppercase tracking-widest outline-none focus:border-emerald-500/50 transition-all text-gray-300 min-w-[140px]">
                 <option value="ALL">Todas Ações</option>
-                {/* Opções específicas solicitadas aparecem no topo da lista se existirem em qualquer formato no BD */}
                 {uniqueSpots.map(spot => (
                   <option key={spot} value={spot}>{spot}</option>
                 ))}
               </select>
             </div>
 
-            {/* Filtro Hero Position: Dinâmico baseado nos cenários */}
             <div className="flex flex-col gap-2">
               <label className="text-[9px] text-gray-500 font-black uppercase tracking-widest ml-1">Posição Herói</label>
               <select value={filterPos} onChange={(e) => setFilterPos(e.target.value)} className="bg-black/40 border border-white/5 rounded-xl px-4 py-2.5 text-[9px] md:text-[10px] font-black uppercase tracking-widest outline-none focus:border-emerald-500/50 transition-all text-gray-300 min-w-[100px]">

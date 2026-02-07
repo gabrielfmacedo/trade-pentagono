@@ -334,6 +334,7 @@ const App: React.FC = () => {
   const [showSpotInfoModal, setShowSpotInfoModal] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showScenarioCreatorModal, setShowScenarioCreatorModal] = useState(false);
+  const [creatorDefaultStep, setCreatorDefaultStep] = useState<number | 'manage'>(1);
   const [showAdminMemberModal, setShowAdminMemberModal] = useState(false);
 
   const [timeBankSetting, setTimeBankSetting] = useState<TimeBankOption>('OFF');
@@ -468,8 +469,6 @@ const App: React.FC = () => {
       totalPot += betAmount;
 
       const isDealer = count === 2 ? posName === 'SB' : posName === 'BTN';
-
-      // Lógica de stack individual ou global
       const playerStackBB = activeScenario.individualStacks?.[posName] ?? activeScenario.stackBB;
 
       return {
@@ -639,7 +638,16 @@ const App: React.FC = () => {
 
   const onSelectScenario = (s: Scenario) => { setActiveScenario(s); setCurrentView('setup'); setHandHistory([]); setSessionElapsedSeconds(0); };
   const handleStartTraining = (goal: TrainingGoal) => { setTrainingGoal(goal); setCurrentView('trainer'); setHandHistory([]); setSessionElapsedSeconds(0); };
-  const handleCreateNew = () => setShowScenarioCreatorModal(true);
+  
+  const handleCreateNew = () => {
+    setCreatorDefaultStep(1);
+    setShowScenarioCreatorModal(true);
+  };
+
+  const handleEditScenarios = () => {
+    setCreatorDefaultStep('manage');
+    setShowScenarioCreatorModal(true);
+  };
   
   const handleSaveScenario = (newScenario: Scenario) => {
     setScenarios(prev => {
@@ -732,10 +740,8 @@ const App: React.FC = () => {
   const renderActionButtons = () => {
     const customActions = activeScenario?.customActions || ['Fold', 'Call', 'Raise', 'All-In'];
     const n = customActions.length;
-    
     let row1: string[] = [];
     let row2: string[] = [];
-
     if (n <= 3) {
       row1 = customActions;
     } else if (n === 4) {
@@ -748,14 +754,12 @@ const App: React.FC = () => {
       row1 = customActions.slice(0, 3);
       row2 = customActions.slice(3, 6);
     }
-
     const renderRow = (row: string[]) => (
       <div className="flex gap-2 w-full justify-center">
         {row.map((label) => {
           const originalIdx = customActions.indexOf(label);
           const color = getActionColor(label, originalIdx);
           const baseWidth = (n === 4) ? 'w-[calc(50%-4px)]' : 'w-[calc(33.33%-6px)]';
-          
           return (
             <button key={originalIdx} onClick={() => handleActionClick(label)} 
               style={{ backgroundColor: color, borderColor: 'rgba(255,255,255,0.2)' }}
@@ -766,7 +770,6 @@ const App: React.FC = () => {
         })}
       </div>
     );
-
     return (
       <div className={`flex flex-col gap-1.5 md:gap-2 w-full ${isMobile ? 'max-w-[340px]' : 'max-w-[440px]'} px-2 items-center`}>
         {renderRow(row1)}
@@ -795,7 +798,30 @@ const App: React.FC = () => {
     );
   }
 
-  if (currentView === 'selection') return ( <div className="w-full h-screen overflow-hidden"> <SelectionScreen scenarios={scenarios} onSelect={onSelectScenario} onCreateNew={handleCreateNew} isAdmin={isAdmin} /> <ScenarioCreatorModal isOpen={showScenarioCreatorModal} scenarios={scenarios} onClose={() => setShowScenarioCreatorModal(false)} onSave={handleSaveScenario} onDelete={handleDeleteScenario} /> <AdminMemberModal isOpen={showAdminMemberModal} onClose={() => setShowAdminMemberModal(false)} /> <div className="fixed top-8 right-8 flex gap-3 z-[100]"> {isAdmin && ( <button onClick={() => setShowAdminMemberModal(true)} className="px-4 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-emerald-400 hover:text-emerald-300 transition-all"> ADMIN </button> )} <button onClick={handleLogout} className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white transition-all"> Sair </button> </div> <SupportButton /> </div> );
+  if (currentView === 'selection') return ( 
+    <div className="w-full h-screen overflow-hidden"> 
+      <SelectionScreen 
+        scenarios={scenarios} 
+        onSelect={onSelectScenario} 
+        onCreateNew={handleCreateNew} 
+        onEditScenarios={handleEditScenarios}
+        onShowAdmin={() => setShowAdminMemberModal(true)}
+        onLogout={handleLogout}
+        isAdmin={isAdmin} 
+      /> 
+      <ScenarioCreatorModal 
+        isOpen={showScenarioCreatorModal} 
+        scenarios={scenarios} 
+        onClose={() => setShowScenarioCreatorModal(false)} 
+        onSave={handleSaveScenario} 
+        onDelete={handleDeleteScenario} 
+        defaultStep={creatorDefaultStep}
+      /> 
+      <AdminMemberModal isOpen={showAdminMemberModal} onClose={() => setShowAdminMemberModal(false)} /> 
+      <SupportButton /> 
+    </div> 
+  );
+
   if (currentView === 'setup' && activeScenario) return <> <TrainingSetupScreen scenarioName={activeScenario.name} onStart={handleStartTraining} onBack={() => setCurrentView('selection')} /> <SupportButton /> </>;
 
   const playerCount = activeScenario?.playerCount || 9;
@@ -803,7 +829,7 @@ const App: React.FC = () => {
   return (
     <div className="w-full h-screen bg-[#050505] flex overflow-hidden font-sans text-white relative">
       {!isFocusMode && (
-        <Sidebar isOpen={sidebarOpen} isPinned={sidebarPinned} onToggle={() => setSidebarOpen(!sidebarOpen)} onTogglePin={handleToggleSidebarPin} onToggleFocusMode={() => setIsFocusMode(true)} onStopTreino={() => setShowStopModal(true)} onRestartTreino={() => setShowRestartModal(true)} onShowSpotInfo={() => setShowSpotInfoModal(true)} onShowConfig={() => setShowConfigModal(true)} onShowScenarioCreator={() => setShowScenarioCreatorModal(true)} onShowAdminMember={() => setShowAdminMemberModal(true)} onBackToSelection={() => setCurrentView('selection')} onLogout={handleLogout} currentUser={currentUser} history={handHistory} ranges={activeScenario?.ranges} customActions={activeScenario?.customActions} trainingGoal={trainingGoal || undefined} sessionElapsedSeconds={sessionElapsedSeconds} />
+        <Sidebar isOpen={sidebarOpen} isPinned={sidebarPinned} onToggle={() => setSidebarOpen(!sidebarOpen)} onTogglePin={handleToggleSidebarPin} onToggleFocusMode={() => setIsFocusMode(true)} onStopTreino={() => setShowStopModal(true)} onRestartTreino={() => setShowRestartModal(true)} onShowSpotInfo={() => setShowSpotInfoModal(true)} onShowConfig={() => setShowConfigModal(true)} onShowScenarioCreator={handleEditScenarios} onShowAdminMember={() => setShowAdminMemberModal(true)} onBackToSelection={() => setCurrentView('selection')} onLogout={handleLogout} currentUser={currentUser} history={handHistory} ranges={activeScenario?.ranges} customActions={activeScenario?.customActions} trainingGoal={trainingGoal || undefined} sessionElapsedSeconds={sessionElapsedSeconds} />
       )}
       {isFocusMode && (
         <div className="fixed inset-0 z-[200] pointer-events-none flex flex-col justify-between p-10 animate-in fade-in duration-500">
@@ -822,7 +848,6 @@ const App: React.FC = () => {
       <div className={`flex-1 relative flex flex-col items-center justify-center transition-all duration-300 ${!isMobile && sidebarOpen && !isFocusMode ? 'ml-80' : 'ml-0'}`}>
         <div className={`relative w-full ${isMobile ? 'max-w-[450px] aspect-[9/13.5] mt-[-40px]' : 'max-w-[800px] aspect-[16/10]'} flex flex-col items-center justify-center select-none transition-all duration-500`}>
           <div className={`absolute inset-0 ${isMobile ? 'm-8 rounded-[110px]' : 'm-16 rounded-[120px]'} border-[8px] border-[#111111] shadow-[0_20px_60px_-15px_rgba(0,0,0,1)] bg-[#080808]`}>
-            {/* Table Felt - Updated to Golden Green mix */}
             <div className="absolute inset-1.5 bg-[radial-gradient(ellipse_at_center,_#064e3b_0%,_#022c22_65%,_#000000_100%)] flex items-center justify-center overflow-hidden rounded-[100px]">
               <div className={`absolute left-1/2 -translate-x-1/2 ${isMobile ? (playerCount <= 4 ? 'top-[28%]' : 'top-[36%]') + ' flex-col-reverse gap-12' : 'top-[30%] flex-col gap-4'} z-20 flex items-center`}>
                   <div className="bg-black/90 px-3.5 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1.5 shadow-2xl backdrop-blur-sm">
@@ -876,7 +901,7 @@ const App: React.FC = () => {
         videoLink={activeScenario?.videoLink}
       />
       <ConfigModal isOpen={showConfigModal} onClose={() => setShowConfigModal(false)} timeBank={timeBankSetting} setTimeBank={setTimeBankSetting} />
-      <ScenarioCreatorModal isOpen={showScenarioCreatorModal} scenarios={scenarios} onClose={() => setShowScenarioCreatorModal(false)} onSave={handleSaveScenario} onDelete={handleDeleteScenario} />
+      <ScenarioCreatorModal isOpen={showScenarioCreatorModal} scenarios={scenarios} onClose={() => setShowScenarioCreatorModal(false)} onSave={handleSaveScenario} onDelete={handleDeleteScenario} defaultStep={creatorDefaultStep} />
       <AdminMemberModal isOpen={showAdminMemberModal} onClose={() => setShowAdminMemberModal(false)} />
     </div>
   );

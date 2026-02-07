@@ -8,6 +8,7 @@ interface ScenarioCreatorModalProps {
   onSave?: (s: Scenario) => void;
   onDelete?: (id: string) => void;
   scenarios?: Scenario[];
+  defaultStep?: number | 'manage';
 }
 
 const RANKS = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
@@ -29,8 +30,8 @@ const getActionColor = (label: string, index: number): string => {
 
 const EMPTY_CELL_BG = '#0f172a'; 
 
-const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onClose, onSave, onDelete, scenarios = [] }) => {
-  const [step, setStep] = useState<number | 'manage'>(1);
+const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onClose, onSave, onDelete, scenarios = [], defaultStep = 1 }) => {
+  const [step, setStep] = useState<number | 'manage' | 'bulk-stack'>(defaultStep);
   const [isDragging, setIsDragging] = useState(false);
   
   const [currentId, setCurrentId] = useState<string>(`sc-${Date.now()}`);
@@ -45,7 +46,6 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
   const [opponents, setOpponents] = useState<string[]>([]);
   const [stackBB, setStackBB] = useState(100);
   
-  // New State for Individual Stacks
   const [stackMode, setStackMode] = useState<'equal' | 'different'>('equal');
   const [individualStacks, setIndividualStacks] = useState<{ [pos: string]: number }>({});
 
@@ -64,11 +64,39 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
   const [suitRangeText, setSuitRangeText] = useState('');
   const [gtoWizardText, setGtoWizardText] = useState('');
 
-  // Autosave timer effect
+  // Estados de Filtro para a Tela de Gerenciamento
+  const [mFilterStreet, setMFilterStreet] = useState('ALL');
+  const [mFilterStack, setMFilterStack] = useState('ALL');
+  const [mFilterAction, setMFilterAction] = useState('ALL');
+  const [mFilterPos, setMFilterPos] = useState('ALL');
+
+  // Estados para Seleção Múltipla e Duplicação em Massa
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkIndex, setBulkIndex] = useState(0);
+  const [bulkStackInput, setBulkStackInput] = useState(20);
+  const [bulkScenariosToProcess, setBulkScenariosToProcess] = useState<Scenario[]>([]);
+  const [bulkResults, setBulkResults] = useState<Scenario[]>([]);
+
+  // Reset step e filtros quando modal abre
   useEffect(() => {
-    if (!isOpen || step === 'manage') return;
+    if (isOpen) {
+      setStep(defaultStep);
+      setMFilterStreet('ALL');
+      setMFilterStack('ALL');
+      setMFilterAction('ALL');
+      setMFilterPos('ALL');
+      setSelectedIds([]);
+      setBulkMode(false);
+      setBulkResults([]);
+    }
+  }, [isOpen, defaultStep]);
+
+  useEffect(() => {
+    if (!isOpen || step === 'manage' || step === 'bulk-stack') return;
 
     const interval = setInterval(() => {
+      if (bulkMode) return; // Não salvar rascunho em modo bulk
       const draft = {
         currentId, name, description, videoLink, modality, street, action,
         playerCount, heroPos, opponents, stackBB, stackMode, individualStacks, 
@@ -79,10 +107,10 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
     }, 60000);
 
     return () => clearInterval(interval);
-  }, [isOpen, step, currentId, name, description, videoLink, modality, street, action, playerCount, heroPos, opponents, stackBB, stackMode, individualStacks, heroBetSize, opponentBetSize, customActions, rangeData]);
+  }, [isOpen, step, currentId, name, description, videoLink, modality, street, action, playerCount, heroPos, opponents, stackBB, stackMode, individualStacks, heroBetSize, opponentBetSize, customActions, rangeData, bulkMode]);
 
   useEffect(() => {
-    if (isOpen && !name) {
+    if (isOpen && !name && !bulkMode) {
       const savedDraft = localStorage.getItem(SCENARIO_DRAFT_KEY);
       if (savedDraft) {
         if (window.confirm('Um rascunho de cenário anterior foi encontrado. Deseja recuperá-lo?')) {
@@ -116,8 +144,6 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
       setHeroPos(availablePositions[0] || 'BTN');
     }
     setOpponents(prev => prev.filter(pos => availablePositions.includes(pos)));
-    
-    // Cleanup individual stacks for positions that no longer exist
     setIndividualStacks(prev => {
       const next = { ...prev };
       Object.keys(next).forEach(pos => {
@@ -128,7 +154,7 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
   }, [playerCount, availablePositions, heroPos]);
 
   useEffect(() => {
-    if (customActions.length === 0) {
+    if (customActions.length === 0 && !bulkMode) {
       if (street === 'PREFLOP') {
         if (action === 'RFI') setCustomActions(['Fold', 'Raise']);
         else if (action === 'open shove') setCustomActions(['Fold', 'All-In']);
@@ -139,7 +165,7 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
         setCustomActions(['Fold', 'Call', 'Raise']);
       }
     }
-  }, [action, street, customActions]);
+  }, [action, street, customActions, bulkMode]);
 
   const isReRaiseAction = useMemo(() => {
     const a = action.toLowerCase();
@@ -147,6 +173,7 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
   }, [action]);
 
   const loadScenarioToEdit = (s: Scenario) => {
+    setBulkMode(false);
     setCurrentId(s.id);
     setName(s.name);
     setDescription(s.description || '');
@@ -168,6 +195,7 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
   };
 
   const duplicateScenario = (s: Scenario) => {
+    setBulkMode(false);
     const newId = `sc-${Date.now()}`;
     const newName = `${s.name} (Cópia)`;
     setCurrentId(newId);
@@ -188,6 +216,112 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
     setRangeData(JSON.parse(JSON.stringify(s.ranges || {})));
     setCustomActions([...(s.customActions || [])]);
     setStep(1);
+  };
+
+  // --- Lógica Bulk ---
+  const startBulkDuplication = () => {
+    if (selectedIds.length === 0) return;
+    const toProcess = scenarios.filter(s => selectedIds.includes(s.id));
+    setBulkScenariosToProcess(toProcess);
+    setBulkResults([]);
+    setBulkIndex(0);
+    setBulkMode(true);
+    setStep('bulk-stack');
+  };
+
+  const proceedFromBulkStack = () => {
+    // Carregar o primeiro cenário do bulk para edição de range
+    loadBulkScenarioByIndex(0);
+    setStep(2);
+  };
+
+  const loadBulkScenarioByIndex = (idx: number) => {
+    const s = bulkScenariosToProcess[idx];
+    const newId = `sc-${Date.now()}-${idx}`;
+    const newName = `${s.name} (${bulkStackInput}BB)`;
+    
+    setCurrentId(newId);
+    setName(newName);
+    setDescription(s.description || '');
+    setVideoLink(s.videoLink || '');
+    setModality(s.modality);
+    setStreet(s.street);
+    setAction(s.preflopAction);
+    setPlayerCount(s.playerCount);
+    setHeroPos(s.heroPos);
+    setOpponents(s.opponents || []);
+    setStackBB(bulkStackInput);
+    setStackMode('equal');
+    setIndividualStacks({});
+    setHeroBetSize(s.heroBetSize || 2.5);
+    setOpponentBetSize(s.opponentBetSize || 2.2);
+    setRangeData(JSON.parse(JSON.stringify(s.ranges || {})));
+    setCustomActions([...(s.customActions || [])]);
+  };
+
+  const handleBulkNext = () => {
+    const currentResult: Scenario = {
+      id: currentId, name, description, videoLink, modality, street, preflopAction: action,
+      playerCount, heroPos, opponents, stackBB, ranges: rangeData, customActions,
+      heroBetSize, opponentBetSize: isReRaiseAction ? opponentBetSize : undefined
+    };
+    
+    const newResults = [...bulkResults, currentResult];
+    setBulkResults(newResults);
+
+    if (bulkIndex < bulkScenariosToProcess.length - 1) {
+      const nextIdx = bulkIndex + 1;
+      setBulkIndex(nextIdx);
+      loadBulkScenarioByIndex(nextIdx);
+    } else {
+      newResults.forEach(res => onSave?.(res));
+      alert(`${newResults.length} novos cenários criados com sucesso!`);
+      finishAndClean();
+    }
+  };
+
+  const finishAndClean = () => {
+    localStorage.removeItem(SCENARIO_DRAFT_KEY);
+    onClose(); 
+    setStep(1); 
+    setRangeData({}); 
+    setCurrentId(`sc-${Date.now()}`);
+    setName(''); 
+    setDescription(''); 
+    setVideoLink('');
+    setBulkMode(false);
+    setSelectedIds([]);
+  };
+
+  const handleRetornar = () => {
+    if (step === 'manage') {
+      setStep(1);
+    } else if (step === 'bulk-stack') {
+      setStep('manage');
+    } else if (step === 2) {
+      if (bulkMode) {
+        if (window.confirm('Deseja retornar à configuração de stack? O progresso desta duplicação será reiniciado.')) {
+          setBulkMode(false);
+          setStep('bulk-stack');
+        }
+      } else {
+        setStep(1);
+      }
+    } else if (step === 1) {
+      onClose();
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredScenariosForManage.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredScenariosForManage.map(s => s.id));
+    }
   };
 
   const toggleOpponent = useCallback((pos: string) => {
@@ -278,7 +412,6 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
     const newRangeData = { ...rangeData };
 
     parts.forEach(part => {
-      // Pairs like AA-TT or 55+
       if (/^[2-9TJQK A]{2}(\+|-|$)/.test(part)) {
         if (part.includes('-')) {
           const [top, bottom] = part.split('-').map(p => p[0]);
@@ -297,7 +430,6 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
           updateHandAction(newRangeData, part.substring(0, 2), selectedAction, selectedFrequency);
         }
       } 
-      // Suited/Offsuit like AKs-AQs, T9s+, AKo
       else if (/^[2-9TJQK A]{2}[so](\+|-|$)/.test(part)) {
         const r1 = part[0]; const r2 = part[1]; const type = part[2];
         if (part.includes('-')) {
@@ -347,7 +479,6 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
       return;
     }
     
-    // Formato: 5d5c: 1, 5h5c: 1, Tc9c: 0.8353...
     const pairs = gtoWizardText.split(',').map(p => p.trim());
     const newRangeData = { ...rangeData };
     let addedCount = 0;
@@ -385,6 +516,10 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
   }, []);
 
   const handleFinish = () => {
+    if (bulkMode) {
+      handleBulkNext();
+      return;
+    }
     const newScenario: Scenario = {
       id: currentId, name: name || 'Novo Cenário', description, videoLink, modality, street, preflopAction: action,
       playerCount, heroPos, opponents, stackBB, 
@@ -393,56 +528,206 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
       ranges: rangeData, customActions
     };
     if (onSave) onSave(newScenario);
-    localStorage.removeItem(SCENARIO_DRAFT_KEY);
-    onClose(); setStep(1); setRangeData({}); setCurrentId(`sc-${Date.now()}`);
-    setName(''); setDescription(''); setVideoLink('');
+    finishAndClean();
   };
+
+  // Logica de Filtro para Gerenciamento
+  const manageUniqueStacks = useMemo(() => Array.from(new Set(scenarios.map(s => s.stackBB))).sort((a, b) => a - b), [scenarios]);
+  const manageUniqueActions = useMemo(() => Array.from(new Set(scenarios.map(s => s.preflopAction))).sort(), [scenarios]);
+  const manageUniquePositions = useMemo(() => Array.from(new Set(scenarios.map(s => s.heroPos))).sort(), [scenarios]);
+
+  const filteredScenariosForManage = useMemo(() => {
+    return scenarios.filter(s => {
+      const matchStreet = mFilterStreet === 'ALL' || s.street === mFilterStreet;
+      const matchStack = mFilterStack === 'ALL' || s.stackBB.toString() === mFilterStack;
+      const matchAction = mFilterAction === 'ALL' || s.preflopAction === mFilterAction;
+      const matchPos = mFilterPos === 'ALL' || s.heroPos === mFilterPos;
+      return matchStreet && matchStack && matchAction && matchPos;
+    });
+  }, [scenarios, mFilterStreet, mFilterStack, mFilterAction, mFilterPos]);
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/98 backdrop-blur-2xl animate-in fade-in duration-300">
-      <div className={`bg-[#080808] w-full ${step === 2 ? 'max-w-[1250px]' : 'max-w-4xl'} border border-white/10 rounded-[40px] shadow-2xl flex flex-col max-h-[95vh] overflow-hidden transition-all duration-500`}>
+      <div className={`bg-[#080808] w-full ${step === 2 || step === 'manage' ? 'max-w-[1250px]' : 'max-w-4xl'} border border-white/10 rounded-[40px] shadow-2xl flex flex-col max-h-[95vh] overflow-hidden transition-all duration-500`}>
         
-        <div className={`px-10 py-8 border-b border-white/5 flex justify-between items-center ${step === 2 ? 'bg-sky-500/5' : 'bg-emerald-500/5'}`}>
+        <div className={`px-10 py-8 border-b border-white/5 flex justify-between items-center ${step === 2 ? 'bg-sky-500/5' : step === 'manage' ? 'bg-purple-500/5' : 'bg-emerald-500/5'}`}>
           <div className="flex items-center gap-6">
-            <div className={`w-14 h-14 ${step === 'manage' ? 'bg-gray-700' : step === 1 ? 'bg-emerald-600' : 'bg-sky-600'} rounded-2xl flex items-center justify-center shadow-2xl`}>
-               {step === 1 ? <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M12 4v16m8-8H4" /></svg> : <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M9 17l-5-5 5-5m11 5H4" /></svg>}
+            <div className={`w-14 h-14 ${step === 'manage' ? 'bg-purple-600' : step === 1 ? 'bg-emerald-600' : 'bg-sky-600'} rounded-2xl flex items-center justify-center shadow-2xl`}>
+               {step === 'manage' ? <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg> : step === 1 ? <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M12 4v16m8-8H4" /></svg> : <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M9 17l-5-5 5-5m11 5H4" /></svg>}
             </div>
             <div>
               <h2 className="text-3xl font-black text-white tracking-tighter uppercase leading-none mb-1">{step === 'manage' ? 'GERENCIAR' : step === 1 ? 'CRIADOR' : 'MATRIZ GTO'}</h2>
               <div className="flex items-center gap-3">
-                <p className={`text-[11px] font-black tracking-[0.3em] uppercase ${step === 1 ? 'text-emerald-500' : 'text-sky-500'}`}>{step === 1 ? 'Etapa 1: Mesa e Spot' : 'Etapa 2: Range Estratégico'}</p>
+                <p className={`text-[11px] font-black tracking-[0.3em] uppercase ${step === 'manage' ? 'text-purple-500' : step === 1 ? 'text-emerald-500' : 'text-sky-500'}`}>{step === 'manage' ? 'LISTA E FILTROS DE CENÁRIOS' : step === 1 ? 'Etapa 1: Mesa e Spot' : 'Etapa 2: Range Estratégico'}</p>
                 {lastAutosave && <span className="text-[9px] text-gray-600 font-bold uppercase tracking-widest italic animate-pulse">Autosave: {lastAutosave.toLocaleTimeString()}</span>}
               </div>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            {step === 1 && <button onClick={() => setStep('manage')} className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase text-gray-400 tracking-widest hover:bg-white/10 hover:text-white transition-all">Editar Cenários</button>}
-            <button onClick={() => { onClose(); setStep(1); }} className="p-3 text-gray-500 hover:text-white transition-all bg-white/5 rounded-full"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6L6 18M6 6l12 12" /></svg></button>
+            {step === 2 && (
+              <div className="flex items-center gap-3 animate-in slide-in-from-right-4 duration-500">
+                {bulkMode && (
+                  <div className="bg-sky-500/10 border border-sky-400/20 px-4 py-2 rounded-xl flex flex-col items-center min-w-[120px]">
+                     <span className="text-[7px] text-sky-400 font-black uppercase tracking-widest leading-tight">Progresso Bulk</span>
+                     <span className="text-white font-black text-[11px] leading-tight">{bulkIndex + 1} / {bulkScenariosToProcess.length}</span>
+                  </div>
+                )}
+                <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl flex items-center gap-4">
+                   <div className="flex flex-col items-center px-2">
+                     <span className="text-[7px] text-gray-500 font-black uppercase tracking-widest leading-tight">Posição</span>
+                     <span className="text-white font-black text-[11px] leading-tight uppercase">{heroPos}</span>
+                   </div>
+                   <div className="w-px h-6 bg-white/10"></div>
+                   <div className="flex flex-col items-center px-2">
+                     <span className="text-[7px] text-gray-500 font-black uppercase tracking-widest leading-tight">Stack</span>
+                     <span className="text-white font-black text-[11px] leading-tight">{stackBB} BB</span>
+                   </div>
+                </div>
+              </div>
+            )}
+            {step === 1 && !bulkMode && <button onClick={() => setStep('manage')} className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase text-gray-400 tracking-widest hover:bg-white/10 hover:text-white transition-all">Editar Cenários</button>}
+            <button onClick={() => { if(bulkMode) { if(window.confirm('Cancelar a duplicação em massa? Todo o progresso manual dos ranges será perdido.')) finishAndClean(); } else { finishAndClean(); } }} className="p-3 text-gray-500 hover:text-white transition-all bg-white/5 rounded-full"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6L6 18M6 6l12 12" /></svg></button>
           </div>
         </div>
 
         {step === 'manage' && (
-          <div className="flex-1 overflow-y-auto p-12 custom-scrollbar animate-in fade-in duration-500">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {scenarios.map(s => (
-                  <div key={s.id} className="group bg-white/5 border border-white/5 p-6 rounded-[32px] flex items-center justify-between hover:bg-white/10 hover:border-sky-500/30 transition-all">
-                     <div className="flex-1 min-w-0 pr-4">
-                        <div className="text-sky-500 text-[9px] font-black uppercase tracking-widest mb-1">{s.modality} • {s.street}</div>
-                        <h4 className="text-white font-black text-lg uppercase truncate">{s.name}</h4>
+          <div className="flex-1 overflow-hidden flex flex-col p-8 md:p-12 animate-in fade-in duration-500">
+             {/* Barra de Filtros no Gerenciamento */}
+             <div className="bg-white/5 border border-white/10 p-5 rounded-3xl mb-8 flex flex-wrap gap-6 items-end">
+                <div className="flex flex-col gap-2">
+                  <label className="text-[9px] text-gray-500 font-black uppercase tracking-widest ml-1">Street</label>
+                  <select value={mFilterStreet} onChange={(e) => setMFilterStreet(e.target.value)} className="bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-widest outline-none focus:border-purple-500/50 transition-all text-gray-300 min-w-[120px]">
+                    <option value="ALL">Todas</option>
+                    <option value="PREFLOP">Preflop</option>
+                    <option value="FLOP">Flop</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[9px] text-gray-500 font-black uppercase tracking-widest ml-1">Stack</label>
+                  <select value={mFilterStack} onChange={(e) => setMFilterStack(e.target.value)} className="bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-widest outline-none focus:border-purple-500/50 transition-all text-gray-300 min-w-[120px]">
+                    <option value="ALL">Todos</option>
+                    {manageUniqueStacks.map(st => <option key={st} value={st.toString()}>{st} BB</option>)}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[9px] text-gray-500 font-black uppercase tracking-widest ml-1">Ação</label>
+                  <select value={mFilterAction} onChange={(e) => setMFilterAction(e.target.value)} className="bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-widest outline-none focus:border-purple-500/50 transition-all text-gray-300 min-w-[140px]">
+                    <option value="ALL">Todas</option>
+                    {manageUniqueActions.map(act => <option key={act} value={act}>{act}</option>)}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[9px] text-gray-500 font-black uppercase tracking-widest ml-1">Posição</label>
+                  <select value={mFilterPos} onChange={(e) => setMFilterPos(e.target.value)} className="bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-widest outline-none focus:border-purple-500/50 transition-all text-gray-300 min-w-[100px]">
+                    <option value="ALL">Todas</option>
+                    {manageUniquePositions.map(pos => <option key={pos} value={pos}>{pos}</option>)}
+                  </select>
+                </div>
+                <button onClick={() => { setMFilterStreet('ALL'); setMFilterStack('ALL'); setMFilterAction('ALL'); setMFilterPos('ALL'); }} className="h-[42px] px-6 rounded-xl text-[9px] font-black uppercase tracking-widest bg-white/5 border border-white/10 text-gray-500 hover:text-white transition-all">Limpar Filtros</button>
+                
+                {selectedIds.length > 0 && (
+                   <button 
+                    onClick={startBulkDuplication}
+                    className="h-[42px] px-8 rounded-xl text-[10px] font-black uppercase tracking-widest bg-sky-600 border border-sky-400 text-white hover:bg-sky-500 transition-all shadow-[0_0_20px_rgba(14,165,233,0.3)] animate-in zoom-in"
+                   >
+                     Duplicar Selecionados ({selectedIds.length})
+                   </button>
+                )}
+                
+                <div className="ml-auto text-[10px] text-gray-600 font-black uppercase tracking-widest self-center">{filteredScenariosForManage.length} Resultados</div>
+             </div>
+
+             <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-2">
+                {/* Header da Tabela */}
+                <div className="grid grid-cols-12 gap-4 px-6 py-3 text-[9px] font-black text-gray-600 uppercase tracking-widest border-b border-white/5">
+                  <div className="col-span-1 flex items-center justify-center">
+                    <button onClick={toggleSelectAll} className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${selectedIds.length === filteredScenariosForManage.length ? 'bg-sky-600 border-sky-400' : 'bg-white/5 border-white/10'}`}>
+                      {selectedIds.length === filteredScenariosForManage.length && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4"><path d="M5 13l4 4L19 7" /></svg>}
+                    </button>
+                  </div>
+                  <div className="col-span-1">Street</div>
+                  <div className="col-span-2">Ação</div>
+                  <div className="col-span-1">Hero</div>
+                  <div className="col-span-1">Stack</div>
+                  <div className="col-span-1">Players</div>
+                  <div className="col-span-2">Nome do Cenário</div>
+                  <div className="col-span-3 text-right">Ações</div>
+                </div>
+
+                {filteredScenariosForManage.map(s => (
+                  <div key={s.id} className={`grid grid-cols-12 gap-4 items-center px-6 py-4 border rounded-2xl transition-all group ${selectedIds.includes(s.id) ? 'bg-sky-600/10 border-sky-500/50' : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-purple-500/30'}`}>
+                     <div className="col-span-1 flex items-center justify-center">
+                        <button onClick={() => toggleSelect(s.id)} className={`w-6 h-6 rounded-lg border flex items-center justify-center transition-all ${selectedIds.includes(s.id) ? 'bg-sky-600 border-sky-400 shadow-lg' : 'bg-white/5 border-white/10'}`}>
+                          {selectedIds.includes(s.id) && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4"><path d="M5 13l4 4L19 7" /></svg>}
+                        </button>
                      </div>
-                     <div className="flex items-center gap-2 shrink-0">
-                        <button onClick={() => { if(window.confirm('Excluir este cenário permanentemente?')) onDelete?.(s.id); }} className="p-3 bg-red-500/10 rounded-xl text-red-500 hover:bg-red-500/20 transition-all opacity-0 group-hover:opacity-100" title="Excluir Cenário">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                     <div className="col-span-1">
+                        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${s.street === 'PREFLOP' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-purple-500/20 text-purple-400'}`}>{s.street}</span>
+                     </div>
+                     <div className="col-span-2">
+                        <span className="text-amber-500 text-[9px] font-black tracking-widest uppercase">{s.preflopAction}</span>
+                     </div>
+                     <div className="col-span-1 text-sky-400 font-black text-[10px] uppercase">{s.heroPos}</div>
+                     <div className="col-span-1 text-white font-black text-[10px]">{s.stackBB} BB</div>
+                     <div className="col-span-1 text-gray-500 font-black text-[10px] uppercase">{s.playerCount}-Max</div>
+                     <div className="col-span-2">
+                        <h4 className="text-white font-bold text-sm uppercase truncate pr-4">{s.name}</h4>
+                     </div>
+                     <div className="col-span-3 flex items-center justify-end gap-2">
+                        <button onClick={() => { if(window.confirm('Excluir este cenário permanentemente?')) onDelete?.(s.id); }} className="p-2.5 bg-red-500/10 rounded-lg text-red-500 hover:bg-red-500/20 transition-all opacity-40 group-hover:opacity-100" title="Excluir">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         </button>
-                        <button onClick={() => duplicateScenario(s)} className="p-3 bg-white/10 rounded-xl text-white hover:bg-white/20 transition-all opacity-0 group-hover:opacity-100" title="Duplicar Cenário">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M8 7v-2a2 2 0 012-2h9a2 2 0 012 2v9a2 2 0 01-2 2h-2M5 11h9a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2v-9a2 2 0 012-2z" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                        <button onClick={() => duplicateScenario(s)} className="p-2.5 bg-white/10 rounded-lg text-white hover:bg-white/20 transition-all opacity-40 group-hover:opacity-100" title="Duplicar Individual">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M8 7v-2a2 2 0 012-2h9a2 2 0 012 2v9a2 2 0 01-2 2h-2M5 11h9a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2v-9a2 2 0 012-2z" /></svg>
                         </button>
-                        <button onClick={() => loadScenarioToEdit(s)} className="px-5 py-3 bg-sky-600 rounded-xl text-white font-black text-[10px] uppercase tracking-widest hover:bg-sky-500 transition-all opacity-0 group-hover:opacity-100 shadow-xl">Editar Tudo</button>
+                        <button onClick={() => loadScenarioToEdit(s)} className="px-4 py-2.5 bg-sky-600 rounded-lg text-white font-black text-[9px] uppercase tracking-widest hover:bg-sky-500 transition-all shadow-xl">Editar</button>
                      </div>
                   </div>
                 ))}
+                {filteredScenariosForManage.length === 0 && (
+                  <div className="py-20 text-center text-gray-600 font-black uppercase tracking-[0.3em] text-[11px]">Nenhum cenário encontrado para estes filtros</div>
+                )}
+             </div>
+          </div>
+        )}
+
+        {step === 'bulk-stack' && (
+          <div className="flex-1 flex flex-col items-center justify-center p-12 animate-in slide-in-from-bottom-4 duration-500">
+             <div className="w-full max-w-md bg-white/5 border border-white/10 p-10 rounded-[40px] text-center space-y-8">
+                <div className="w-20 h-20 bg-sky-600/20 border border-sky-400/30 rounded-3xl flex items-center justify-center mx-auto text-sky-400 shadow-2xl">
+                   <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+                </div>
+                <div>
+                   <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Duplicar Selecionados</h3>
+                   <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mt-2">Defina o novo Stack para os {selectedIds.length} cenários</p>
+                </div>
+                
+                <div className="space-y-4">
+                   <label className="text-[11px] text-gray-400 font-black uppercase tracking-widest block text-left px-2">Novo Stack Efetivo (BB)</label>
+                   <div className="relative">
+                      <input 
+                        type="number" 
+                        value={bulkStackInput} 
+                        onChange={(e) => setBulkStackInput(parseFloat(e.target.value) || 0)} 
+                        className="w-full bg-black border border-white/10 rounded-[24px] py-6 px-8 text-white font-black text-2xl outline-none focus:border-sky-500 shadow-inner" 
+                        autoFocus
+                      />
+                      <span className="absolute right-8 top-1/2 -translate-y-1/2 text-sky-500 font-black text-xs uppercase tracking-widest">Big Blinds</span>
+                   </div>
+                </div>
+
+                <div className="bg-amber-500/5 border border-amber-500/20 p-6 rounded-2xl text-left">
+                   <p className="text-[10px] text-amber-500 font-black uppercase tracking-widest leading-relaxed">Na próxima etapa, você revisará o range estratégico de cada posição uma a uma antes de salvar.</p>
+                </div>
+
+                <button 
+                  onClick={proceedFromBulkStack}
+                  className="w-full py-6 bg-sky-600 hover:bg-sky-500 border border-sky-400 rounded-[24px] text-xs font-black uppercase tracking-[0.2em] text-white shadow-2xl transition-all active:scale-95"
+                >
+                  Continuar para Matrizes
+                </button>
              </div>
           </div>
         )}
@@ -479,7 +764,6 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
               </div>
             </div>
 
-            {/* Stack Configuration */}
             <div className="space-y-6 bg-white/5 p-8 rounded-[32px] border border-white/10">
                <div className="flex justify-between items-center mb-2">
                   <label className="text-[11px] text-gray-500 font-black uppercase tracking-widest px-1">Configuração de Stacks</label>
@@ -535,7 +819,6 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
                )}
             </div>
 
-            {/* Gerenciamento de Botões de Ação */}
             <div className="space-y-4 col-span-full bg-white/5 p-8 rounded-[32px] border border-white/10">
                <div className="flex justify-between items-center mb-4">
                   <label className="text-[11px] text-gray-500 font-black uppercase tracking-widest px-1">Ações do Herói (Botões na Mesa)</label>
@@ -568,7 +851,7 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
                       }
                     }}
                     placeholder="Adicionar botão (ex: Raise 2.5, All-In, Check)"
-                    className="flex-1 bg-black/60 border border-white/10 rounded-2xl py-4 px-6 text-white text-xs font-bold outline-none focus:border-sky-500/50 shadow-inner"
+                    className="flex-1 bg-black/60 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm font-bold outline-none focus:border-sky-500/50 shadow-inner"
                   />
                   <button
                     type="button"
@@ -654,7 +937,6 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
                    <input type="range" min="0" max="100" step="5" value={selectedFrequency} onChange={(e) => setSelectedFrequency(parseInt(e.target.value))} className="w-full h-1.5 bg-black/60 rounded-full appearance-none cursor-pointer accent-sky-500" />
                 </div>
                 
-                {/* Inputs de Range por Texto */}
                 <div className="pt-4 border-t border-white/5 space-y-4">
                   <div className="space-y-2">
                     <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block">Range por Texto (ex: AA-TT, 55+, AKs)</label>
@@ -670,7 +952,6 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
                       <button type="button" onClick={parseSuitRangeText} className="bg-sky-600 px-4 rounded-xl text-white text-[10px] font-black uppercase shadow-lg hover:bg-sky-500 active:scale-95 transition-all">Add</button>
                     </div>
                   </div>
-                  {/* Novo Input GTO Wizard */}
                   <div className="space-y-2">
                     <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block">GTO Wizard (ex: 5d5c: 1, Tc9c: 0.85)</label>
                     <div className="flex flex-col gap-2">
@@ -704,8 +985,17 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
         )}
 
         <div className="px-12 py-10 border-t border-white/5 bg-black/50 flex gap-6 shrink-0">
-          <button type="button" onClick={() => step === 2 || step === 'manage' ? setStep(1) : onClose()} className="flex-1 py-6 rounded-[24px] border border-white/10 text-[12px] font-black uppercase tracking-[0.3em] text-gray-500 hover:text-white transition-all">{step === 1 ? 'CANCELAR' : 'RETORNAR'}</button>
-          {step !== 'manage' && <button type="button" onClick={() => step === 1 ? setStep(2) : handleFinish()} className={`flex-[1.5] py-6 rounded-[24px] border text-[12px] font-black uppercase tracking-[0.3em] text-white shadow-2xl transition-all flex items-center justify-center gap-4 ${step === 1 ? 'bg-emerald-600 border-emerald-400' : 'bg-sky-600 border-sky-400'}`}>{step === 1 ? 'CONFIGURAR MATRIZ GTO' : 'SALVAR CENÁRIO'}</button>}
+          <button type="button" onClick={handleRetornar} className="flex-1 py-6 rounded-[24px] border border-white/10 text-[12px] font-black uppercase tracking-[0.3em] text-gray-500 hover:text-white transition-all">{step === 1 ? 'CANCELAR' : 'RETORNAR'}</button>
+          
+          {step === 'bulk-stack' && (
+             <button type="button" onClick={proceedFromBulkStack} className="flex-[1.5] py-6 rounded-[24px] border text-[12px] font-black uppercase tracking-[0.3em] text-white bg-sky-600 border-sky-400 shadow-2xl transition-all">CONFIRMAR STACK BB</button>
+          )}
+
+          {step !== 'manage' && step !== 'bulk-stack' && (
+             <button type="button" onClick={() => step === 1 ? setStep(2) : handleFinish()} className={`flex-[1.5] py-6 rounded-[24px] border text-[12px] font-black uppercase tracking-[0.3em] text-white shadow-2xl transition-all flex items-center justify-center gap-4 ${step === 1 ? 'bg-emerald-600 border-emerald-400' : 'bg-sky-600 border-sky-400'}`}>
+               {step === 1 ? 'CONFIGURAR MATRIZ GTO' : bulkMode ? (bulkIndex < bulkScenariosToProcess.length - 1 ? 'PRÓXIMO CENÁRIO' : 'FINALIZAR E SALVAR TODOS') : 'SALVAR CENÁRIO'}
+             </button>
+          )}
         </div>
       </div>
     </div>
