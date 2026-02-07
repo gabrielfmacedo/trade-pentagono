@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { RangeData, Scenario, ActionFrequency } from '../types.ts';
 
@@ -43,6 +44,11 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
   const [heroPos, setHeroPos] = useState('BTN');
   const [opponents, setOpponents] = useState<string[]>([]);
   const [stackBB, setStackBB] = useState(100);
+  
+  // New State for Individual Stacks
+  const [stackMode, setStackMode] = useState<'equal' | 'different'>('equal');
+  const [individualStacks, setIndividualStacks] = useState<{ [pos: string]: number }>({});
+
   const [heroBetSize, setHeroBetSize] = useState(2.5);
   const [opponentBetSize, setOpponentBetSize] = useState(2.2);
   const [customActions, setCustomActions] = useState<string[]>([]);
@@ -65,14 +71,15 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
     const interval = setInterval(() => {
       const draft = {
         currentId, name, description, videoLink, modality, street, action,
-        playerCount, heroPos, opponents, stackBB, heroBetSize, opponentBetSize, customActions, rangeData, step
+        playerCount, heroPos, opponents, stackBB, stackMode, individualStacks, 
+        heroBetSize, opponentBetSize, customActions, rangeData, step
       };
       localStorage.setItem(SCENARIO_DRAFT_KEY, JSON.stringify(draft));
       setLastAutosave(new Date());
     }, 60000);
 
     return () => clearInterval(interval);
-  }, [isOpen, step, currentId, name, description, videoLink, modality, street, action, playerCount, heroPos, opponents, stackBB, heroBetSize, opponentBetSize, customActions, rangeData]);
+  }, [isOpen, step, currentId, name, description, videoLink, modality, street, action, playerCount, heroPos, opponents, stackBB, stackMode, individualStacks, heroBetSize, opponentBetSize, customActions, rangeData]);
 
   useEffect(() => {
     if (isOpen && !name) {
@@ -84,8 +91,9 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
             setCurrentId(d.currentId); setName(d.name); setDescription(d.description);
             setVideoLink(d.videoLink); setModality(d.modality); setStreet(d.street);
             setAction(d.action); setPlayerCount(d.playerCount); setHeroPos(d.heroPos);
-            setOpponents(d.opponents || []); setStackBB(d.stackBB); setHeroBetSize(d.heroBetSize || 2.5);
-            setOpponentBetSize(d.opponentBetSize || 2.2);
+            setOpponents(d.opponents || []); setStackBB(d.stackBB); 
+            setStackMode(d.stackMode || 'equal'); setIndividualStacks(d.individualStacks || {});
+            setHeroBetSize(d.heroBetSize || 2.5); setOpponentBetSize(d.opponentBetSize || 2.2);
             setCustomActions(d.customActions || []); setRangeData(d.rangeData || {});
             setStep(d.step || 1);
           } catch (e) { console.error('Falha ao restaurar rascunho', e); }
@@ -108,6 +116,15 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
       setHeroPos(availablePositions[0] || 'BTN');
     }
     setOpponents(prev => prev.filter(pos => availablePositions.includes(pos)));
+    
+    // Cleanup individual stacks for positions that no longer exist
+    setIndividualStacks(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(pos => {
+        if (!availablePositions.includes(pos)) delete next[pos];
+      });
+      return next;
+    });
   }, [playerCount, availablePositions, heroPos]);
 
   useEffect(() => {
@@ -141,6 +158,8 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
     setHeroPos(s.heroPos);
     setOpponents(s.opponents || []);
     setStackBB(s.stackBB);
+    setStackMode(s.individualStacks ? 'different' : 'equal');
+    setIndividualStacks(s.individualStacks || {});
     setHeroBetSize(s.heroBetSize || 2.5);
     setOpponentBetSize(s.opponentBetSize || 2.2);
     setRangeData(s.ranges || {});
@@ -162,6 +181,8 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
     setHeroPos(s.heroPos);
     setOpponents(s.opponents || []);
     setStackBB(s.stackBB);
+    setStackMode(s.individualStacks ? 'different' : 'equal');
+    setIndividualStacks(JSON.parse(JSON.stringify(s.individualStacks || {})));
     setHeroBetSize(s.heroBetSize || 2.5);
     setOpponentBetSize(s.opponentBetSize || 2.2);
     setRangeData(JSON.parse(JSON.stringify(s.ranges || {})));
@@ -172,6 +193,11 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
   const toggleOpponent = useCallback((pos: string) => {
     setOpponents(prev => prev.includes(pos) ? prev.filter(p => p !== pos) : [...prev, pos]);
   }, []);
+
+  const handleIndividualStackChange = (pos: string, val: string) => {
+    const num = parseFloat(val) || 0;
+    setIndividualStacks(prev => ({ ...prev, [pos]: num }));
+  };
 
   const availableRangeActions = useMemo(() => {
     if (customActions.length > 0) return customActions;
@@ -361,7 +387,9 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
   const handleFinish = () => {
     const newScenario: Scenario = {
       id: currentId, name: name || 'Novo Cenário', description, videoLink, modality, street, preflopAction: action,
-      playerCount, heroPos, opponents, stackBB, heroBetSize, opponentBetSize: isReRaiseAction ? opponentBetSize : undefined,
+      playerCount, heroPos, opponents, stackBB, 
+      individualStacks: stackMode === 'different' ? individualStacks : undefined,
+      heroBetSize, opponentBetSize: isReRaiseAction ? opponentBetSize : undefined,
       ranges: rangeData, customActions
     };
     if (onSave) onSave(newScenario);
@@ -442,14 +470,69 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
                 </div>
               </div>
               <div className="space-y-4">
-                <label className="text-[11px] text-gray-500 font-black uppercase tracking-widest px-1">Stack Efetivo (BB)</label>
-                <input 
-                  type="number" 
-                  value={stackBB} 
-                  onChange={(e) => setStackBB(parseFloat(e.target.value) || 0)} 
-                  className="w-full bg-white/5 border border-white/10 rounded-[20px] py-4 px-8 text-white font-bold outline-none focus:border-sky-500/50" 
-                />
+                <label className="text-[11px] text-gray-500 font-black uppercase tracking-widest px-1">Qtd. Jogadores (9-max, 6-max...)</label>
+                <div className="grid grid-cols-4 gap-2">
+                   {[2, 4, 6, 9].map(n => (
+                     <button key={n} onClick={() => setPlayerCount(n)} className={`py-4 rounded-2xl border text-xs font-black transition-all ${playerCount === n ? 'bg-emerald-600 border-emerald-400' : 'bg-white/5 border-white/5 text-gray-500'}`}>{n}</button>
+                   ))}
+                </div>
               </div>
+            </div>
+
+            {/* Stack Configuration */}
+            <div className="space-y-6 bg-white/5 p-8 rounded-[32px] border border-white/10">
+               <div className="flex justify-between items-center mb-2">
+                  <label className="text-[11px] text-gray-500 font-black uppercase tracking-widest px-1">Configuração de Stacks</label>
+                  <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
+                    <button 
+                      onClick={() => setStackMode('equal')} 
+                      className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${stackMode === 'equal' ? 'bg-emerald-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                    >
+                      Stacks Iguais
+                    </button>
+                    <button 
+                      onClick={() => setStackMode('different')} 
+                      className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${stackMode === 'different' ? 'bg-sky-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                    >
+                      Stacks Diferentes
+                    </button>
+                  </div>
+               </div>
+
+               {stackMode === 'equal' ? (
+                 <div className="space-y-3 animate-in fade-in duration-300">
+                    <p className="text-[10px] text-gray-500 font-bold px-1">Defina o stack efetivo que será aplicado a todos os jogadores da mesa.</p>
+                    <div className="relative">
+                      <input 
+                        type="number" 
+                        value={stackBB} 
+                        onChange={(e) => setStackBB(parseFloat(e.target.value) || 0)} 
+                        className="w-full bg-black/40 border border-white/10 rounded-[20px] py-5 px-8 text-white font-black text-xl outline-none focus:border-emerald-500/50" 
+                      />
+                      <span className="absolute right-8 top-1/2 -translate-y-1/2 text-emerald-500 font-black text-xs uppercase tracking-widest">Big Blinds</span>
+                    </div>
+                 </div>
+               ) : (
+                 <div className="space-y-6 animate-in slide-in-from-top-4 duration-500">
+                    <p className="text-[10px] text-gray-500 font-bold px-1">Defina o stack individual (em BB) para cada posição da mesa.</p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                       {availablePositions.map(pos => (
+                         <div key={pos} className="space-y-2">
+                           <div className="flex items-center gap-2 px-1">
+                             <div className={`w-1.5 h-1.5 rounded-full ${pos === heroPos ? 'bg-sky-500' : 'bg-gray-600'}`}></div>
+                             <label className={`text-[9px] font-black uppercase tracking-widest ${pos === heroPos ? 'text-sky-400' : 'text-gray-500'}`}>{pos}</label>
+                           </div>
+                           <input 
+                             type="number" 
+                             value={individualStacks[pos] || stackBB} 
+                             onChange={(e) => handleIndividualStackChange(pos, e.target.value)}
+                             className="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-white font-black text-xs outline-none focus:border-sky-500/50"
+                           />
+                         </div>
+                       ))}
+                    </div>
+                 </div>
+               )}
             </div>
 
             {/* Gerenciamento de Botões de Ação */}

@@ -16,18 +16,23 @@ const SelectionScreen: React.FC<SelectionScreenProps> = ({ scenarios, onSelect, 
   const [filterPlayers, setFilterPlayers] = useState<string>('ALL');
   const [filterPos, setFilterPos] = useState<string>('ALL');
 
-  const uniqueSpots = useMemo(() => Array.from(new Set(scenarios.map(s => s.preflopAction))).sort(), [scenarios]);
+  // Dados dinâmicos extraídos dos cenários cadastrados
+  // Fix: Explicitly type sort parameters to avoid arithmetic operation errors
+  const uniqueStacks = useMemo(() => Array.from(new Set(scenarios.map(s => s.stackBB))).sort((a: number, b: number) => a - b), [scenarios]);
+  const uniqueSpots = useMemo(() => {
+    const spots = new Set(scenarios.map(s => s.preflopAction.toUpperCase()));
+    // Garante que as opções solicitadas apareçam se existirem nos dados (independente de case)
+    return Array.from(spots).sort();
+  }, [scenarios]);
+  // Fix: Ensure numeric types for sort parameters to avoid arithmetic operation errors
   const uniquePlayers = useMemo(() => Array.from(new Set(scenarios.map(s => s.playerCount))).sort((a: number, b: number) => b - a), [scenarios]);
   const uniquePositions = useMemo(() => Array.from(new Set(scenarios.map(s => s.heroPos))).sort(), [scenarios]);
 
   const filteredScenarios = useMemo(() => {
     return scenarios.filter(s => {
       const matchStreet = filterStreet === 'ALL' || s.street === filterStreet;
-      let matchStack = true;
-      if (filterStack === 'SHORT') matchStack = s.stackBB <= 25;
-      else if (filterStack === 'MEDIUM') matchStack = s.stackBB > 25 && s.stackBB <= 50;
-      else if (filterStack === 'DEEP') matchStack = s.stackBB > 50;
-      const matchSpot = filterSpot === 'ALL' || s.preflopAction === filterSpot;
+      const matchStack = filterStack === 'ALL' || s.stackBB.toString() === filterStack;
+      const matchSpot = filterSpot === 'ALL' || s.preflopAction.toUpperCase() === filterSpot;
       const matchPlayers = filterPlayers === 'ALL' || s.playerCount.toString() === filterPlayers;
       const matchPos = filterPos === 'ALL' || s.heroPos === filterPos;
       return matchStreet && matchStack && matchSpot && matchPlayers && matchPos;
@@ -71,6 +76,7 @@ const SelectionScreen: React.FC<SelectionScreenProps> = ({ scenarios, onSelect, 
 
         <div className="bg-[#0f0f0f] border border-white/5 rounded-[24px] md:rounded-[32px] p-4 md:p-6 mb-6 md:mb-8 shrink-0 shadow-2xl overflow-x-auto no-scrollbar">
           <div className="flex flex-row md:flex-wrap items-end gap-4 md:gap-6 min-w-max md:min-w-0">
+            {/* Filtro Street: Mantido */}
             <div className="flex flex-col gap-2">
               <label className="text-[9px] text-gray-500 font-black uppercase tracking-widest ml-1">Street</label>
               <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
@@ -81,16 +87,42 @@ const SelectionScreen: React.FC<SelectionScreenProps> = ({ scenarios, onSelect, 
                 ))}
               </div>
             </div>
+
+            {/* Filtro Stack: Dinâmico baseado nos cenários */}
             <div className="flex flex-col gap-2">
               <label className="text-[9px] text-gray-500 font-black uppercase tracking-widest ml-1">Stack (BB)</label>
-              <select value={filterStack} onChange={(e) => setFilterStack(e.target.value)} className="bg-black/40 border border-white/5 rounded-xl px-4 py-2.5 text-[9px] md:text-[10px] font-black uppercase tracking-widest outline-none focus:border-emerald-500/50 transition-all text-gray-300">
+              <select value={filterStack} onChange={(e) => setFilterStack(e.target.value)} className="bg-black/40 border border-white/5 rounded-xl px-4 py-2.5 text-[9px] md:text-[10px] font-black uppercase tracking-widest outline-none focus:border-emerald-500/50 transition-all text-gray-300 min-w-[120px]">
                 <option value="ALL">Todos Stacks</option>
-                <option value="SHORT">Short &le; 25 BB</option>
-                <option value="MEDIUM">Medium (26-50 BB)</option>
-                <option value="DEEP">Deep &gt; 50 BB</option>
+                {uniqueStacks.map(stack => (
+                  <option key={stack} value={stack.toString()}>{stack} BB</option>
+                ))}
               </select>
             </div>
-            <button onClick={clearFilters} disabled={!hasActiveFilters} className={`h-[42px] px-6 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${hasActiveFilters ? 'bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20' : 'bg-white/5 border border-white/5 text-gray-600 cursor-not-allowed'}`}>Limpar</button>
+
+            {/* Filtro Ação (Spot): Dinâmico + Opções Específicas */}
+            <div className="flex flex-col gap-2">
+              <label className="text-[9px] text-gray-500 font-black uppercase tracking-widest ml-1">Ação / Spot</label>
+              <select value={filterSpot} onChange={(e) => setFilterSpot(e.target.value)} className="bg-black/40 border border-white/5 rounded-xl px-4 py-2.5 text-[9px] md:text-[10px] font-black uppercase tracking-widest outline-none focus:border-emerald-500/50 transition-all text-gray-300 min-w-[140px]">
+                <option value="ALL">Todas Ações</option>
+                {/* Opções específicas solicitadas aparecem no topo da lista se existirem em qualquer formato no BD */}
+                {uniqueSpots.map(spot => (
+                  <option key={spot} value={spot}>{spot}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filtro Hero Position: Dinâmico baseado nos cenários */}
+            <div className="flex flex-col gap-2">
+              <label className="text-[9px] text-gray-500 font-black uppercase tracking-widest ml-1">Posição Herói</label>
+              <select value={filterPos} onChange={(e) => setFilterPos(e.target.value)} className="bg-black/40 border border-white/5 rounded-xl px-4 py-2.5 text-[9px] md:text-[10px] font-black uppercase tracking-widest outline-none focus:border-emerald-500/50 transition-all text-gray-300 min-w-[100px]">
+                <option value="ALL">Todas</option>
+                {uniquePositions.map(pos => (
+                  <option key={pos} value={pos}>{pos}</option>
+                ))}
+              </select>
+            </div>
+
+            <button onClick={clearFilters} disabled={!hasActiveFilters} className={`h-[42px] px-6 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${hasActiveFilters ? 'bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20' : 'bg-white/5 border border-white/5 text-gray-600 cursor-not-allowed'}`}>Limpar Filtros</button>
           </div>
         </div>
 
@@ -124,6 +156,16 @@ const SelectionScreen: React.FC<SelectionScreenProps> = ({ scenarios, onSelect, 
               </div>
             ))}
           </div>
+          {filteredScenarios.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-20 text-gray-600 uppercase">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="mb-4 opacity-20">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <span className="text-[10px] font-black tracking-widest">Nenhum cenário encontrado para estes filtros</span>
+            </div>
+          )}
         </div>
       </div>
     </div>

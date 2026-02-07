@@ -50,6 +50,7 @@ export interface Scenario {
   heroPos: string;
   opponents: string[];
   stackBB: number;
+  individualStacks?: { [position: string]: number };
   heroBetSize: number; // Tamanho da aposta/aumento do herói em BBs
   opponentBetSize?: number; // Tamanho do raise inicial do vilão em BBs
   ranges: RangeData;
