@@ -51,12 +51,13 @@ export interface Scenario {
   opponents: string[];
   stackBB: number;
   individualStacks?: { [position: string]: number };
-  heroBetSize: number; // Tamanho da aposta/aumento do herói em BBs
-  opponentBetSize?: number; // Tamanho do raise inicial do vilão em BBs
+  heroBetSize: number; 
+  opponentBetSize?: number; 
   ranges: RangeData;
-  customActions?: string[]; // Novos rótulos de botões customizados
+  customActions?: string[]; 
   description?: string;
   videoLink?: string;
+  updatedAt?: number; // Timestamp da última alteração
 }
 
 export interface User {
@@ -73,5 +74,5 @@ export type TrainingGoalType = 'hands' | 'time' | 'free';
 
 export interface TrainingGoal {
   type: TrainingGoalType;
-  value: number; // Quantidade de mãos ou minutos
+  value: number; 
 }

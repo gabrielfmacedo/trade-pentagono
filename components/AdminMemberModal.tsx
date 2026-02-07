@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useMemo } from 'react';
 
 interface Member {
   name: string;
@@ -41,6 +42,20 @@ const AdminMemberModal: React.FC<AdminMemberModalProps> = ({ isOpen, onClose }) 
       setSuccess('');
     }
   }, [isOpen]);
+
+  const lastUpdateDate = useMemo(() => {
+    const rawScenarios = localStorage.getItem(SCENARIOS_STORAGE_KEY);
+    if (!rawScenarios) return null;
+    try {
+      const parsed = JSON.parse(rawScenarios);
+      if (!Array.isArray(parsed) || parsed.length === 0) return null;
+      const times = parsed.map((s: any) => s.updatedAt || 0);
+      const latest = Math.max(...times);
+      return latest > 0 ? new Date(latest).toLocaleString('pt-BR') : null;
+    } catch (e) {
+      return null;
+    }
+  }, [view, syncJson]);
 
   const saveToStorage = (updatedList: Member[]) => {
     localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(updatedList));
@@ -127,7 +142,7 @@ const AdminMemberModal: React.FC<AdminMemberModalProps> = ({ isOpen, onClose }) 
         setView('list');
       }, 2000);
     } else {
-      setError(`Nenhum novo membro cadastrado. ${skipCount} e-mails já estavam na lista.`);
+      setError(`Nenhum novo membro cadastrado.`);
     }
   };
 
@@ -178,7 +193,7 @@ const AdminMemberModal: React.FC<AdminMemberModalProps> = ({ isOpen, onClose }) 
     const data = rawData ? JSON.parse(rawData) : [];
     
     if (!data || data.length === 0) {
-      setError(`Não existem ${syncType === 'scenarios' ? 'cenários' : 'membros'} customizados para exportar.`);
+      setError(`Não existem ${syncType === 'scenarios' ? 'cenários' : 'membros'} para exportar.`);
       setSyncJson('');
       return;
     }
@@ -186,7 +201,7 @@ const AdminMemberModal: React.FC<AdminMemberModalProps> = ({ isOpen, onClose }) 
     try {
       const jsonStr = JSON.stringify(data, null, 2);
       setSyncJson(jsonStr);
-      setSuccess(`${syncType === 'scenarios' ? 'Cenários' : 'Membros'} exportados com sucesso!`);
+      setSuccess(`${syncType === 'scenarios' ? 'Cenários' : 'Membros'} exportados!`);
     } catch (e) {
       setError('Erro ao gerar código JSON.');
       setSyncJson('');
@@ -202,14 +217,36 @@ const AdminMemberModal: React.FC<AdminMemberModalProps> = ({ isOpen, onClose }) 
       const parsed = JSON.parse(syncJson);
       if (Array.isArray(parsed)) {
         const key = syncType === 'scenarios' ? SCENARIOS_STORAGE_KEY : MEMBERS_STORAGE_KEY;
-        localStorage.setItem(key, JSON.stringify(parsed));
-        setSuccess('Dados importados com sucesso! O sistema será reiniciado.');
+        const rawExisting = localStorage.getItem(key);
+        const existingData = rawExisting ? JSON.parse(rawExisting) : [];
+        
+        // Lógica de Inteligente: Substituir por ID se existir, Adicionar se novo
+        const newData = [...existingData];
+        let updatedCount = 0;
+        let addedCount = 0;
+
+        parsed.forEach((incomingItem: any) => {
+          // Identificador para membros é e-mail, para cenários é id
+          const idField = syncType === 'members' ? 'email' : 'id';
+          const index = newData.findIndex(ex => ex[idField] === incomingItem[idField]);
+          
+          if (index !== -1) {
+            newData[index] = incomingItem;
+            updatedCount++;
+          } else {
+            newData.push(incomingItem);
+            addedCount++;
+          }
+        });
+
+        localStorage.setItem(key, JSON.stringify(newData));
+        setSuccess(`${addedCount} novos e ${updatedCount} atualizados! Reiniciando...`);
         setTimeout(() => window.location.reload(), 2000);
       } else {
         setError('Formato JSON inválido. Deve ser um array.');
       }
     } catch (e) {
-      setError('Erro ao processar JSON. Verifique o código.');
+      setError('Erro ao processar JSON.');
     }
   };
 
@@ -239,12 +276,8 @@ const AdminMemberModal: React.FC<AdminMemberModalProps> = ({ isOpen, onClose }) 
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
-          {success && (
-            <div className="mb-6 bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl text-emerald-400 text-center text-xs font-black uppercase tracking-widest animate-in zoom-in">{success}</div>
-          )}
-          {error && (
-            <div className="mb-6 bg-red-500/10 border border-red-500/20 p-4 rounded-2xl text-red-400 text-center text-xs font-black uppercase tracking-widest">{error}</div>
-          )}
+          {success && <div className="mb-6 bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl text-emerald-400 text-center text-xs font-black uppercase tracking-widest animate-in zoom-in">{success}</div>}
+          {error && <div className="mb-6 bg-red-500/10 border border-red-500/20 p-4 rounded-2xl text-red-400 text-center text-xs font-black uppercase tracking-widest">{error}</div>}
 
           {view === 'list' && (
             <div className="space-y-3 animate-in fade-in duration-300">
@@ -276,9 +309,16 @@ const AdminMemberModal: React.FC<AdminMemberModalProps> = ({ isOpen, onClose }) 
           {view === 'sync' && (
             <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
                <div className="bg-purple-500/5 border border-purple-500/10 p-6 rounded-[24px]">
-                  <h4 className="text-white font-black text-xs uppercase tracking-widest mb-2">Sincronização Global:</h4>
-                  <p className="text-[10px] text-gray-500 mb-4 font-bold">Gere o JSON e compartilhe o código para manter todos os usuários com os mesmos dados.</p>
+                  <h4 className="text-white font-black text-xs uppercase tracking-widest mb-2">Sincronização Inteligente:</h4>
+                  <p className="text-[10px] text-gray-500 mb-4 font-bold">O sistema identifica se o cenário já existe pelo código único e o atualiza. Se for novo, ele será adicionado.</p>
                   
+                  {lastUpdateDate && (
+                    <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 p-3 rounded-xl mb-4 animate-pulse">
+                       <div className="w-1.5 h-1.5 bg-amber-500 rounded-full"></div>
+                       <span className="text-[9px] text-amber-500 font-black uppercase tracking-widest">Alteração Local Identificada: {lastUpdateDate}</span>
+                    </div>
+                  )}
+
                   <div className="flex p-1 bg-black/40 rounded-xl border border-white/5 mb-4">
                     <button onClick={() => { setSyncType('scenarios'); setSyncJson(''); setError(''); setSuccess(''); }} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${syncType === 'scenarios' ? 'bg-purple-600/20 text-purple-400' : 'text-gray-500 hover:text-gray-300'}`}>Cenários</button>
                     <button onClick={() => { setSyncType('members'); setSyncJson(''); setError(''); setSuccess(''); }} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${syncType === 'members' ? 'bg-sky-600/20 text-sky-400' : 'text-gray-500 hover:text-gray-300'}`}>Membros</button>
@@ -289,12 +329,12 @@ const AdminMemberModal: React.FC<AdminMemberModalProps> = ({ isOpen, onClose }) 
 
                <div className="space-y-2">
                  <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest px-1">Código de Sincronização</label>
-                 <textarea value={syncJson} onChange={(e) => setSyncJson(e.target.value)} placeholder="O código JSON aparecerá aqui..." className="w-full h-48 bg-black/40 border border-white/10 rounded-2xl py-4 px-6 text-[11px] font-mono text-gray-400 outline-none focus:border-purple-500/50 resize-none transition-all shadow-inner custom-scrollbar" />
+                 <textarea value={syncJson} onChange={(e) => setSyncJson(e.target.value)} placeholder="Cole o código JSON aqui para atualizar/importar..." className="w-full h-48 bg-black/40 border border-white/10 rounded-2xl py-4 px-6 text-[11px] font-mono text-gray-400 outline-none focus:border-purple-500/50 resize-none transition-all shadow-inner custom-scrollbar" />
                </div>
 
                <div className="flex gap-4">
-                 <button onClick={handleImportSync} className="flex-1 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white transition-all">Importar JSON</button>
-                 <button onClick={() => { if(syncJson) { navigator.clipboard.writeText(syncJson); setSuccess('Copiado para a área de transferência!'); } }} className="flex-1 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white transition-all">Copiar Código</button>
+                 <button onClick={handleImportSync} className="flex-1 py-4 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/20 rounded-2xl text-[11px] font-black uppercase tracking-widest text-emerald-400 transition-all">Sincronizar Dados</button>
+                 <button onClick={() => { if(syncJson) { navigator.clipboard.writeText(syncJson); setSuccess('Copiado!'); } }} className="flex-1 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white transition-all">Copiar Código</button>
                </div>
             </div>
           )}
