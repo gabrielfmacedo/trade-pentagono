@@ -15,6 +15,25 @@ interface AdminMemberModalProps {
   onClose: () => void;
 }
 
+const SYSTEM_DEFAULT_MEMBERS: Member[] = [
+  {
+    "name": "RAFAGONTIJO86",
+    "email": "rafagontijo86@gmail.com",
+    "password": "poker2026",
+    "mustChangePassword": false,
+    "isAdmin": false,
+    "hasMultiLoginAttempt": false
+  },
+  {
+    "name": "NATHANVERMIN",
+    "email": "nathanvermin@gmail.com",
+    "password": "poker2026",
+    "mustChangePassword": false,
+    "isAdmin": false,
+    "hasMultiLoginAttempt": false
+  }
+];
+
 const AdminMemberModal: React.FC<AdminMemberModalProps> = ({ isOpen, onClose }) => {
   const [view, setView] = useState<'list' | 'create' | 'edit' | 'mass_create' | 'sync'>('list');
   const [members, setMembers] = useState<Member[]>([]);
@@ -36,7 +55,16 @@ const AdminMemberModal: React.FC<AdminMemberModalProps> = ({ isOpen, onClose }) 
   useEffect(() => {
     if (isOpen) {
       const stored = JSON.parse(localStorage.getItem(MEMBERS_STORAGE_KEY) || '[]');
-      setMembers(stored);
+      
+      // Mesclar com membros padrão do sistema para garantir que sempre apareçam
+      const merged = [...SYSTEM_DEFAULT_MEMBERS];
+      stored.forEach((sm: Member) => {
+        if (!merged.some(m => m.email.toLowerCase() === sm.email.toLowerCase())) {
+          merged.push(sm);
+        }
+      });
+      
+      setMembers(merged);
       setView('list');
       setError('');
       setSuccess('');
@@ -220,13 +248,11 @@ const AdminMemberModal: React.FC<AdminMemberModalProps> = ({ isOpen, onClose }) 
         const rawExisting = localStorage.getItem(key);
         const existingData = rawExisting ? JSON.parse(rawExisting) : [];
         
-        // Lógica de Inteligente: Substituir por ID se existir, Adicionar se novo
         const newData = [...existingData];
         let updatedCount = 0;
         let addedCount = 0;
 
         parsed.forEach((incomingItem: any) => {
-          // Identificador para membros é e-mail, para cenários é id
           const idField = syncType === 'members' ? 'email' : 'id';
           const index = newData.findIndex(ex => ex[idField] === incomingItem[idField]);
           
@@ -255,7 +281,6 @@ const AdminMemberModal: React.FC<AdminMemberModalProps> = ({ isOpen, onClose }) 
   return (
     <div className="fixed inset-0 z-[600] flex items-center justify-center p-4 bg-black/95 backdrop-blur-2xl animate-in fade-in duration-300">
       <div className="bg-[#0f0f0f] w-full max-w-2xl border border-white/10 rounded-[40px] shadow-[0_40px_80px_-20px_rgba(0,0,0,1)] flex flex-col max-h-[85vh] overflow-hidden relative">
-        
         <div className="p-8 border-b border-white/5 flex flex-col gap-4">
           <div className="flex justify-between items-start">
             <div>
@@ -266,7 +291,6 @@ const AdminMemberModal: React.FC<AdminMemberModalProps> = ({ isOpen, onClose }) 
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6L6 18M6 6l12 12" /></svg>
             </button>
           </div>
-
           <div className="flex gap-2 p-1 bg-black/40 rounded-2xl border border-white/5 overflow-x-auto no-scrollbar">
             <button onClick={() => setView('list')} className={`flex-1 min-w-[100px] py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${view === 'list' ? 'bg-white/10 text-white shadow-xl' : 'text-gray-500 hover:text-gray-300'}`}>Lista</button>
             <button onClick={() => { setView('create'); setName(''); setEmail(''); }} className={`flex-1 min-w-[120px] py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${view === 'create' ? 'bg-emerald-600/20 text-emerald-400' : 'text-gray-500 hover:text-gray-300'}`}>Novo Membro</button>
@@ -274,11 +298,9 @@ const AdminMemberModal: React.FC<AdminMemberModalProps> = ({ isOpen, onClose }) 
             <button onClick={() => { setView('sync'); setSyncJson(''); setError(''); setSuccess(''); }} className={`flex-1 min-w-[140px] py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${view === 'sync' ? 'bg-purple-600/20 text-purple-400 shadow-xl' : 'text-gray-500 hover:text-gray-300'}`}>Sincronização</button>
           </div>
         </div>
-
         <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
           {success && <div className="mb-6 bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl text-emerald-400 text-center text-xs font-black uppercase tracking-widest animate-in zoom-in">{success}</div>}
           {error && <div className="mb-6 bg-red-500/10 border border-red-500/20 p-4 rounded-2xl text-red-400 text-center text-xs font-black uppercase tracking-widest">{error}</div>}
-
           {view === 'list' && (
             <div className="space-y-3 animate-in fade-in duration-300">
               {members.length === 0 ? (
@@ -305,57 +327,37 @@ const AdminMemberModal: React.FC<AdminMemberModalProps> = ({ isOpen, onClose }) 
               )}
             </div>
           )}
-
           {view === 'sync' && (
             <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
                <div className="bg-purple-500/5 border border-purple-500/10 p-6 rounded-[24px]">
-                  <h4 className="text-white font-black text-xs uppercase tracking-widest mb-2">Sincronização Inteligente:</h4>
-                  <p className="text-[10px] text-gray-500 mb-4 font-bold">O sistema identifica se o cenário já existe pelo código único e o atualiza. Se for novo, ele será adicionado.</p>
-                  
-                  {lastUpdateDate && (
-                    <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 p-3 rounded-xl mb-4 animate-pulse">
-                       <div className="w-1.5 h-1.5 bg-amber-500 rounded-full"></div>
-                       <span className="text-[9px] text-amber-500 font-black uppercase tracking-widest">Alteração Local Identificada: {lastUpdateDate}</span>
-                    </div>
-                  )}
-
+                  <h4 className="text-white font-black text-xs uppercase tracking-widest mb-2">Sincronização Inteligente</h4>
+                  <p className="text-[10px] text-gray-500 mb-4 font-bold">Gerencie dados entre diferentes dispositivos.</p>
                   <div className="flex p-1 bg-black/40 rounded-xl border border-white/5 mb-4">
                     <button onClick={() => { setSyncType('scenarios'); setSyncJson(''); setError(''); setSuccess(''); }} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${syncType === 'scenarios' ? 'bg-purple-600/20 text-purple-400' : 'text-gray-500 hover:text-gray-300'}`}>Cenários</button>
                     <button onClick={() => { setSyncType('members'); setSyncJson(''); setError(''); setSuccess(''); }} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${syncType === 'members' ? 'bg-sky-600/20 text-sky-400' : 'text-gray-500 hover:text-gray-300'}`}>Membros</button>
                   </div>
-
-                  <button onClick={handleExportSync} className={`w-full py-4 border rounded-2xl text-[11px] font-black uppercase tracking-widest text-white transition-all shadow-xl ${syncType === 'scenarios' ? 'bg-purple-600 border-purple-400 hover:bg-purple-500' : 'bg-sky-600 border-sky-400 hover:bg-sky-500'}`}>Gerar JSON de {syncType === 'scenarios' ? 'Cenários' : 'Membros'}</button>
+                  <button onClick={handleExportSync} className={`w-full py-4 border rounded-2xl text-[11px] font-black uppercase tracking-widest text-white transition-all shadow-xl ${syncType === 'scenarios' ? 'bg-purple-600 border-purple-400 hover:bg-purple-500' : 'bg-sky-600 border-sky-400 hover:bg-sky-500'}`}>Gerar JSON</button>
                </div>
-
-               <div className="space-y-2">
-                 <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest px-1">Código de Sincronização</label>
-                 <textarea value={syncJson} onChange={(e) => setSyncJson(e.target.value)} placeholder="Cole o código JSON aqui para atualizar/importar..." className="w-full h-48 bg-black/40 border border-white/10 rounded-2xl py-4 px-6 text-[11px] font-mono text-gray-400 outline-none focus:border-purple-500/50 resize-none transition-all shadow-inner custom-scrollbar" />
-               </div>
-
+               <textarea value={syncJson} onChange={(e) => setSyncJson(e.target.value)} placeholder="Cole o código JSON aqui..." className="w-full h-48 bg-black/40 border border-white/10 rounded-2xl py-4 px-6 text-[11px] font-mono text-gray-400 outline-none resize-none transition-all shadow-inner custom-scrollbar" />
                <div className="flex gap-4">
-                 <button onClick={handleImportSync} className="flex-1 py-4 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/20 rounded-2xl text-[11px] font-black uppercase tracking-widest text-emerald-400 transition-all">Sincronizar Dados</button>
-                 <button onClick={() => { if(syncJson) { navigator.clipboard.writeText(syncJson); setSuccess('Copiado!'); } }} className="flex-1 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white transition-all">Copiar Código</button>
+                 <button onClick={handleImportSync} className="flex-1 py-4 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/20 rounded-2xl text-[11px] font-black uppercase tracking-widest text-emerald-400 transition-all">Sincronizar</button>
+                 <button onClick={() => { if(syncJson) { navigator.clipboard.writeText(syncJson); setSuccess('Copiado!'); } }} className="flex-1 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white transition-all">Copiar</button>
                </div>
             </div>
           )}
-
           {view === 'mass_create' && (
             <form onSubmit={handleMassCreate} className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-              <div className="space-y-2">
-                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest px-1">E-mails (Um por linha)</label>
-                <textarea value={massEmails} onChange={(e) => setMassEmails(e.target.value)} placeholder="exemplo1@email.com&#10;exemplo2@email.com" className="w-full h-48 bg-black/40 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm font-bold outline-none focus:border-sky-500/50 resize-none transition-all shadow-inner" />
-              </div>
-              <button type="submit" className="w-full py-5 bg-sky-600 border border-sky-400 rounded-2xl text-xs font-black uppercase tracking-[0.2em] text-white shadow-xl">Cadastrar Lista em Massa</button>
+              <textarea value={massEmails} onChange={(e) => setMassEmails(e.target.value)} placeholder="exemplo1@email.com&#10;exemplo2@email.com" className="w-full h-48 bg-black/40 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm font-bold outline-none focus:border-sky-500/50 resize-none transition-all shadow-inner" />
+              <button type="submit" className="w-full py-5 bg-sky-600 border border-sky-400 rounded-2xl text-xs font-black uppercase tracking-[0.2em] text-white shadow-xl">Cadastrar Lista</button>
             </form>
           )}
-
           {(view === 'create' || view === 'edit') && (
             <form onSubmit={view === 'create' ? handleCreate : handleUpdate} className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome" className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm font-bold outline-none" required />
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm font-bold outline-none" required />
               </div>
-              <button type="submit" className="w-full py-5 bg-emerald-600 border border-emerald-400 rounded-2xl text-xs font-black uppercase tracking-[0.2em] text-white shadow-xl">{view === 'create' ? 'Cadastrar Membro' : 'Salvar Alterações'}</button>
+              <button type="submit" className="w-full py-5 bg-emerald-600 border border-emerald-400 rounded-2xl text-xs font-black uppercase tracking-[0.2em] text-white shadow-xl">{view === 'create' ? 'Cadastrar' : 'Salvar'}</button>
             </form>
           )}
         </div>

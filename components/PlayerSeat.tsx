@@ -6,11 +6,10 @@ interface PlayerSeatProps {
   player: Player;
   isMain?: boolean;
   bigBlindValue?: number;
-  className?: string;
+  className?: string; // 'top' | 'bottom' | 'left' | 'right' | 'left-top' | 'right-top' | 'left-bottom' | 'right-bottom'
   timeRemaining?: number;
   maxTime?: number;
   totalPlayers?: number;
-  isMobile?: boolean;
 }
 
 const getSuitSymbol = (suitChar: string) => {
@@ -37,184 +36,107 @@ const PlayerSeat: React.FC<PlayerSeatProps> = ({
   player, 
   isMain = false, 
   bigBlindValue = 20,
-  className = "",
+  className = "bottom",
   timeRemaining = 0,
-  maxTime = 0,
-  totalPlayers = 9,
-  isMobile = false
+  maxTime = 0
 }) => {
   const isActing = player.status === PlayerStatus.ACTING;
   const isFolded = player.status === PlayerStatus.FOLDED;
 
-  const displayChips = () => {
-    return (player.chips / bigBlindValue).toFixed(1) + " BB";
-  };
+  const displayChips = () => (player.chips / bigBlindValue).toFixed(1) + " BB";
+  const displayBet = () => (player.betAmount && player.betAmount > 0) ? (player.betAmount / bigBlindValue).toFixed(1) + " BB" : null;
 
-  const displayBet = () => {
-    if (!player.betAmount || player.betAmount <= 0) return null;
-    return (player.betAmount / bigBlindValue).toFixed(1) + " BB";
-  };
-
+  // Lógica de ancoragem puramente geométrica (Baseada na posição física na mesa)
   const getOverlayPosition = () => {
-    // Caso especial para Heads-Up (2 jogadores)
-    if (totalPlayers === 2) {
-      if (className.includes('top')) return 'top-[115%]';
-      if (className.includes('bottom')) return 'bottom-[125%]';
+    switch (className) {
+      case 'left-top': return 'left-[105%] top-[90%] -translate-y-1/2';
+      case 'right-top': return 'right-[105%] top-[90%] -translate-y-1/2';
+      case 'left-bottom': return 'left-[105%] top-[10%] -translate-y-1/2';
+      // Para CO (right-bottom), movemos a aposta para cima (top-10%)
+      case 'right-bottom': return 'right-[105%] top-[10%] -translate-y-1/2';
+      case 'left': return 'left-[105%] top-1/2 -translate-y-1/2';
+      case 'right': return 'right-[105%] top-1/2 -translate-y-1/2';
+      case 'top': return 'top-[115%] left-1/2 -translate-x-1/2';
+      default: return 'bottom-[120%] left-1/2 -translate-x-1/2';
     }
-
-    // Ajuste independente da posição do SB baseado no tamanho da mesa
-    if (player.positionName === 'SB') {
-      if (totalPlayers === 9) {
-        // Ajuste SB Mobile: Movimentado levemente para a esquerda (reduzindo left) e mantendo altura anterior
-        if (isMobile) return 'left-[100%] bottom-[75%]';
-        return 'left-[40%] bottom-[115%]';
-      } else if (totalPlayers === 6) {
-        return 'left-[110%] top-[15%]';
-      } else if (totalPlayers === 4) {
-        return 'left-[110%] top-[60%]';
-      }
-    }
-
-    if (player.positionName === 'BB') {
-      if (totalPlayers === 4) {
-        return 'top-[115%]';
-      }
-      return 'left-[115%] bottom-[55%]'; 
-    }
-
-    if (player.positionName === 'UTG') {
-      return 'left-[115%] top-[45%]';
-    }
-
-    if (player.positionName === 'UTG+1') {
-      return 'top-[105%] md:translate-x-0 translate-x-6';
-    }
-
-    if (player.positionName === 'MP') {
-      return 'top-[105%] md:translate-x-0 -translate-x-6';
-    }
-
-    if (player.positionName === 'LJ') {
-      return 'top-[70%] -translate-x-36';
-    }
-
-    if (player.positionName === 'HJ') {
-      return 'top-[60%] -translate-x-36';
-    }
-
-    if (player.positionName === 'CO') {
-      if (totalPlayers === 4) {
-        return 'top-[75%] -translate-x-36';
-      }
-      // Ajuste CO Mobile 9-max: Movimentado mais para a esquerda (dentro da mesa) e para baixo
-      if (isMobile && totalPlayers === 9) {
-        return 'bottom-[65%] right-[110%]';
-      }
-      // Desktop 9-max CO: Acima das cartas
-      return 'bottom-[118%] right-[25%]';
-    }
-    
-    if (isMain) return isMobile ? 'bottom-[110%]' : 'bottom-[125%]';
-    if (className.includes('left')) return 'left-[85%] bottom-[85%]';
-    if (className.includes('right')) return 'right-[85%] bottom-[85%]';
-    if (className.includes('top')) return 'top-[100%]';
-    if (className.includes('bottom')) return 'bottom-[105%]';
-    return '';
   };
 
   const getDealerPosition = () => {
-    if (className.includes('bottom')) return 'bottom-[85%] left-[90%]';
-    if (className.includes('top')) return 'top-[85%] left-[10%]';
-    if (className.includes('left')) return 'left-[85%] bottom-[-10%]';
-    if (className.includes('right')) return 'right-[85%] bottom-[-10%]';
-    return 'top-0 right-0';
+    switch (className) {
+      case 'left':
+      case 'left-top':
+      case 'left-bottom': return 'top-[-5px] right-[-5px]';
+      case 'right':
+      case 'right-top':
+      case 'right-bottom': return 'top-[-5px] left-[-5px]';
+      case 'top': return 'bottom-[-5px] right-[-5px]';
+      default: return 'top-[-5px] left-[-5px]';
+    }
   };
 
   const progress = maxTime > 0 ? (timeRemaining / maxTime) : 0;
-  
-  const getTimerColor = () => {
-    if (progress > 0.5) return 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]';
-    if (progress > 0.2) return 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]';
-    return 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]';
-  };
+  const getTimerColor = () => progress > 0.5 ? 'bg-green-500' : (progress > 0.2 ? 'bg-yellow-500' : 'bg-red-500');
 
   return (
-    <div className={`relative flex flex-col items-center ${className} transition-all duration-300 ${isFolded ? 'opacity-20 grayscale' : ''}`}>
+    <div className={`relative flex flex-col items-center transition-all duration-300 ${isFolded ? 'opacity-30 grayscale' : ''}`}>
       
       {/* Dealer Button */}
       {player.isDealer && (
-        <div className={`absolute ${getDealerPosition()} z-50 pointer-events-none`}>
-          <div className="relative w-7 h-7 bg-white rounded-full border border-slate-300 flex items-center justify-center shadow-xl">
-             <span className="text-black text-[12px] font-black relative z-10 tracking-tighter">D</span>
+        <div className={`absolute ${getDealerPosition()} z-50`}>
+          <div className="w-6 h-6 bg-white rounded-full border border-slate-300 flex items-center justify-center shadow-lg">
+             <span className="text-black text-[10px] font-black">D</span>
           </div>
         </div>
       )}
 
       {/* Cards */}
-      {!isFolded && (isMain || player.status !== PlayerStatus.FOLDED) && (
-        <div className={`flex items-end transition-transform z-0 ${isMain ? 'gap-1 mb-[-4px]' : '-space-x-5 mb-[-6px]'}`}>
+      {!isFolded && (
+        <div className={`flex items-end transition-transform z-0 ${isMain ? 'gap-1 mb-1' : '-space-x-4 mb-[-2px]'}`}>
            {isMain && player.cards ? (
-             <>
-               {player.cards.map((card, i) => {
-                 const rank = card[0];
-                 const suit = card[1];
-                 return (
-                   <div key={i} className={`w-12 h-18 bg-white rounded-md shadow-2xl flex flex-col items-center justify-center leading-none ${getSuitColor(suit)} font-bold border border-gray-300`}>
-                     <span className="text-xl font-black">{rank === 'T' ? '10' : rank}</span>
-                     <span className="text-2xl">{getSuitSymbol(suit)}</span>
-                   </div>
-                 );
-               })}
-             </>
+             player.cards.map((card, i) => (
+               <div key={i} className={`w-10 h-14 bg-white rounded shadow-2xl flex flex-col items-center justify-center leading-none ${getSuitColor(card[1])} font-bold border border-gray-300`}>
+                 <span className="text-sm font-black">{card[0] === 'T' ? '10' : card[0]}</span>
+                 <span className="text-lg">{getSuitSymbol(card[1])}</span>
+               </div>
+             ))
            ) : (
-             <div className="flex -space-x-5">
-               <div className="w-10 h-14 bg-[#1c3c9c] border border-[#001f3f] rounded shadow-lg transform -rotate-12 overflow-hidden">
-                 <div className="w-full h-full opacity-25 bg-[radial-gradient(circle,white_1px,transparent_1px)] bg-[size:4px_4px]"></div>
-               </div>
-               <div className="w-10 h-14 bg-[#1c3c9c] border border-[#001f3f] rounded shadow-lg transform rotate(6deg) overflow-hidden">
-                 <div className="w-full h-full opacity-25 bg-[radial-gradient(circle,white_1px,transparent_1px)] bg-[size:4px_4px]"></div>
-               </div>
-             </div>
+             <>
+               <div className="w-8 h-12 bg-[#1c3c9c] border border-white/20 rounded shadow-lg transform -rotate-12 overflow-hidden" />
+               <div className="w-8 h-12 bg-[#1c3c9c] border border-white/20 rounded shadow-lg transform rotate-6 overflow-hidden" />
+             </>
            )}
         </div>
       )}
 
       {/* Player Box */}
       <div className={`
-        relative w-32 overflow-hidden rounded-md border transition-all z-10
-        ${isActing ? 'border-sky-400 shadow-[0_0_20px_rgba(56,189,248,0.5)] ring-2 ring-sky-400/30' : 'border-black bg-[#0a0a0a] shadow-2xl'}
+        relative w-28 overflow-hidden rounded-lg border-2 transition-all z-10
+        ${isActing ? 'border-sky-400 bg-sky-900/20 shadow-[0_0_15px_rgba(56,189,248,0.4)]' : 'border-white/10 bg-black shadow-2xl'}
       `}>
-        <div className="px-2 py-3 flex flex-col items-center gap-1.5 bg-gradient-to-b from-[#1a1a1a] to-[#050505]">
-          <span className={`font-black text-[13px] text-center uppercase tracking-wider drop-shadow-md ${isActing ? 'text-sky-400' : isFolded ? 'text-white/20' : 'text-white'}`}>
-            {isFolded ? 'FOLD' : player.positionName}
+        <div className="px-2 py-2 flex flex-col items-center gap-1 bg-gradient-to-b from-[#1a1a1a] to-[#050505]">
+          <span className={`font-black text-[11px] text-center uppercase tracking-wider ${isActing ? 'text-sky-400' : 'text-gray-300'}`}>
+            {player.positionName}
           </span>
-
-          <div className={`w-full bg-[#000000] rounded border py-1.5 flex items-center justify-center shadow-[inset_0_2px_10px_rgba(0,0,0,1)] ${isActing ? 'border-sky-900/50' : 'border-white/10'}`}>
-             <span className="text-[#55efc4] font-mono text-[18px] font-black tracking-tighter drop-shadow-[0_0_8px_rgba(85,239,196,0.3)] whitespace-nowrap">
+          <div className="w-full bg-black/60 rounded border border-white/5 py-1 flex items-center justify-center">
+             <span className="text-[#55efc4] font-mono text-[14px] font-black tracking-tighter">
                {displayChips()}
              </span>
           </div>
         </div>
 
-        {/* Linear Timer Bar for Acting Hero */}
         {isActing && maxTime > 0 && (
           <div className="absolute bottom-0 left-0 w-full h-1 bg-black/50">
-            <div 
-              className={`h-full transition-all duration-100 linear ${getTimerColor()}`}
-              style={{ width: `${progress * 100}%` }}
-            />
+            <div className={`h-full transition-all duration-100 linear ${getTimerColor()}`} style={{ width: `${progress * 100}%` }} />
           </div>
         )}
       </div>
 
-      {/* Overlay: Bets */}
-      <div className={`absolute pointer-events-none flex flex-col items-center gap-1 ${getOverlayPosition()} z-30`}>
+      {/* Overlay: Bets (Fixo com base na âncora física) */}
+      <div className={`absolute pointer-events-none flex flex-col items-center ${getOverlayPosition()} z-30`}>
         {displayBet() && (
-          <div className="flex items-center bg-black/90 rounded-full pl-0.5 pr-2.5 py-0.5 border border-white/20 shadow-2xl backdrop-blur-md whitespace-nowrap transition-all">
-            <div className="w-4 h-4 bg-sky-600 rounded-full border border-white/40 flex items-center justify-center relative flex-shrink-0">
-              <div className="w-1.5 h-1.5 border border-white/20 rounded-full"></div>
-            </div>
-            <span className="text-white text-[11px] font-black ml-1.5 leading-none uppercase tracking-tight">{displayBet()}</span>
+          <div className="flex items-center bg-black/80 rounded-full px-2 py-1 border border-white/10 shadow-xl backdrop-blur-md whitespace-nowrap">
+            <div className="w-3 h-3 bg-sky-500 rounded-full border border-white/20" />
+            <span className="text-white text-[10px] font-black ml-1.5 uppercase">{displayBet()}</span>
           </div>
         )}
       </div>

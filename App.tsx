@@ -14,32 +14,45 @@ import LoginScreen from './components/LoginScreen.tsx';
 import RegisterScreen from './components/RegisterScreen.tsx';
 import AdminMemberModal from './components/AdminMemberModal.tsx';
 import TrainingSetupScreen from './components/TrainingSetupScreen.tsx';
+import MobileWarningOverlay from './components/MobileWarningOverlay.tsx';
 
 const BIG_BLIND_VALUE = 20;
 const SCENARIOS_STORAGE_KEY = 'lab11_scenarios_v1';
-const MEMBERS_STORAGE_KEY = 'gto_members';
+const CURRENT_USER_KEY = 'gto_trainer_current_user';
 
 const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'];
 const SUITS = ['c', 'd', 'h', 's'];
 
-const getSuitSymbol = (suitChar: string) => {
-  switch (suitChar) {
-    case 'c': return '♣';
-    case 'd': return '♦';
-    case 'h': return '♥';
-    case 's': return '♠';
-    default: return suitChar;
-  }
-};
-
-const getSuitColor = (suitChar: string) => {
-  switch (suitChar) {
-    case 'c': return 'text-emerald-600';
-    case 'd': return 'text-blue-600';
-    case 'h': return 'text-red-600';
-    case 's': return 'text-gray-900';
-    default: return 'text-black';
-  }
+const TABLE_LAYOUTS = {
+  9: [
+    { x: 50, y: 85, pos: 'bottom' },    // Hero / BTN
+    { x: 18, y: 80, pos: 'left-bottom' },      // SB
+    { x: 4,  y: 50, pos: 'left' },      // BB
+    { x: 12, y: 18, pos: 'left-top' },      // UTG
+    { x: 38, y: 11, pos: 'top' },       // UTG+1
+    { x: 62, y: 11, pos: 'top' },       // MP
+    { x: 88, y: 18, pos: 'right-top' },     // LJ
+    { x: 96, y: 50, pos: 'right' },     // HJ
+    { x: 82, y: 80, pos: 'right-bottom' },     // CO
+  ],
+  6: [
+    { x: 50, y: 85, pos: 'bottom' },    // Hero / BTN
+    { x: 15, y: 65, pos: 'left-bottom' },      // SB
+    { x: 6,  y: 35, pos: 'left' },      // BB
+    { x: 50, y: 18, pos: 'top' },       // LJ
+    { x: 94, y: 35, pos: 'right' },     // HJ
+    { x: 85, y: 65, pos: 'right-bottom' },     // CO
+  ],
+  4: [
+    { x: 50, y: 85, pos: 'bottom' },
+    { x: 15, y: 50, pos: 'left' },
+    { x: 50, y: 18, pos: 'top' },
+    { x: 85, y: 50, pos: 'right' },
+  ],
+  2: [
+    { x: 50, y: 85, pos: 'bottom' },
+    { x: 50, y: 18, pos: 'top' },
+  ]
 };
 
 const getTablePositions = (count: number) => {
@@ -56,27 +69,13 @@ const getPreflopOrder = (count: number) => {
   return ['UTG', 'UTG+1', 'MP', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
 };
 
-const CUSTOM_PALETTE = [
-  '#f59e0b', // Amber/Gold (Padrão para o primeiro Raise)
-  '#8b5cf6', // Violeta
-  '#ec4899', // Rosa
-  '#06b6d4', // Ciano
-  '#f97316', // Laranja
-  '#84cc16', // Lima
-  '#6366f1', // Indigo
-  '#14b8a6', // Teal
-  '#f43f5e', // Rose
-  '#0ea5e9', // Sky
-];
+const CUSTOM_PALETTE = ['#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#84cc16', '#6366f1', '#14b8a6', '#f43f5e', '#0ea5e9'];
 
 const getActionColor = (label: string, index: number): string => {
   const l = label.toLowerCase();
-  // Cores estritamente fixas por semântica
-  if (l.includes('fold')) return '#334155'; // Slate
-  if (l.includes('all-in') || l.includes('shove')) return '#ef4444'; // Red
-  if (l.includes('call') || l.includes('pagar') || l === 'limp' || l === 'check') return '#10b981'; // Emerald
-  
-  // Para qualquer outra ação (Raise com sizes, Bet, etc), usa a paleta por índice para garantir cores diferentes
+  if (l.includes('fold')) return '#334155';
+  if (l.includes('all-in') || l.includes('shove')) return '#ef4444';
+  if (l.includes('call') || l.includes('pagar') || l === 'limp' || l === 'check') return '#10b981';
   return CUSTOM_PALETTE[index % CUSTOM_PALETTE.length];
 };
 
@@ -112,1579 +111,39 @@ const getActiveHandsFromRange = (ranges: RangeData): string[] => {
   });
 };
 
-const SYSTEM_DEFAULT_MEMBERS: User[] = [
-  {
-    "name": "ADMIN PENTÁGONO",
-    "email": "gabrielfmacedo@ymail.com",
-    "password": "admin",
-    "isAdmin": true,
-    "mustChangePassword": false,
-    "hasMultiLoginAttempt": true
-  }
-];
-
 const SYSTEM_DEFAULT_SCENARIOS: Scenario[] = [
-  {
-    "id": "sc-1770426548944",
-    "name": "OPEN SHOVE - 5bb",
-    "description": "",
-    "videoLink": "",
-    "modality": "MTT",
-    "street": "PREFLOP",
-    "preflopAction": "open shove",
-    "playerCount": 9,
-    "heroPos": "UTG",
-    "opponents": [],
-    "stackBB": 5,
-    "heroBetSize": 2.5,
-    "ranges": {
-      "22": { "Fold": 100 },
-      "33": { "Fold": 100 },
-      "44": { "ALL-IN": 100 },
-      "55": { "ALL-IN": 100 },
-      "66": { "ALL-IN": 100 },
-      "77": { "ALL-IN": 100 },
-      "88": { "ALL-IN": 100 },
-      "99": { "ALL-IN": 100 },
-      "AA": { "ALL-IN": 100 },
-      "AKs": { "ALL-IN": 100 },
-      "AQs": { "ALL-IN": 100 },
-      "AJs": { "ALL-IN": 100 },
-      "ATs": { "ALL-IN": 100 },
-      "A9s": { "ALL-IN": 100 },
-      "A8s": { "ALL-IN": 100 },
-      "A7s": { "ALL-IN": 100 },
-      "A6s": { "ALL-IN": 100 },
-      "A5s": { "ALL-IN": 100 },
-      "A4s": { "Fold": 100 },
-      "A3s": { "Fold": 100 },
-      "A2s": { "Fold": 100 },
-      "AKo": { "ALL-IN": 100 },
-      "KK": { "ALL-IN": 100 },
-      "KQs": { "ALL-IN": 100 },
-      "KJs": { "ALL-IN": 100 },
-      "KTs": { "ALL-IN": 100 },
-      "K9s": { "Fold": 100 },
-      "K8s": { "Fold": 100 },
-      "K7s": { "Fold": 100 },
-      "K6s": { "Fold": 100 },
-      "Q8s": { "Fold": 100 },
-      "QTs": { "Fold": 100 },
-      "Q9s": { "Fold": 100 },
-      "T9s": { "Fold": 100 },
-      "J9s": { "Fold": 100 },
-      "JTs": { "Fold": 100 },
-      "QJs": { "ALL-IN": 100 },
-      "QQ": { "ALL-IN": 100 },
-      "TT": { "ALL-IN": 100 },
-      "JJ": { "ALL-IN": 100 },
-      "T8s": { "Fold": 100 },
-      "98s": { "Fold": 100 },
-      "87s": { "Fold": 100 },
-      "A7o": { "Fold": 100 },
-      "A8o": { "Fold": 100 },
-      "A9o": { "ALL-IN": 100 },
-      "ATo": { "ALL-IN": 100 },
-      "AJo": { "ALL-IN": 100 },
-      "AQo": { "ALL-IN": 100 },
-      "KQo": { "ALL-IN": 100 },
-      "KJo": { "ALL-IN": 100 },
-      "KTo": { "Fold": 100 },
-      "QJo": { "Fold": 100 },
-      "K5s": { "Fold": 100 },
-      "K4s": { "Fold": 100 },
-      "K3s": { "Fold": 100 },
-      "K2s": { "Fold": 100 },
-      "Q7s": { "Fold": 100 },
-      "Q6s": { "Fold": 100 },
-      "Q5s": { "Fold": 100 },
-      "Q4s": { "Fold": 100 },
-      "Q3s": { "Fold": 100 },
-      "Q2s": { "Fold": 100 },
-      "J8s": { "Fold": 100 },
-      "J7s": { "Fold": 100 },
-      "J6s": { "Fold": 100 },
-      "J5s": { "Fold": 100 },
-      "J4s": { "Fold": 100 },
-      "J3s": { "Fold": 100 },
-      "J2s": { "Fold": 100 },
-      "T7s": { "Fold": 100 },
-      "T6s": { "Fold": 100 },
-      "T5s": { "Fold": 100 },
-      "T4s": { "Fold": 100 },
-      "T3s": { "Fold": 100 },
-      "T2s": { "Fold": 100 },
-      "97s": { "Fold": 100 },
-      "96s": { "Fold": 100 },
-      "95s": { "Fold": 100 },
-      "94s": { "Fold": 100 },
-      "93s": { "Fold": 100 },
-      "92s": { "Fold": 100 },
-      "86s": { "Fold": 100 },
-      "85s": { "Fold": 100 },
-      "84s": { "Fold": 100 },
-      "83s": { "Fold": 100 },
-      "82s": { "Fold": 100 },
-      "72s": { "Fold": 100 },
-      "73s": { "Fold": 100 },
-      "74s": { "Fold": 100 },
-      "75s": { "Fold": 100 },
-      "76s": { "Fold": 100 },
-      "65s": { "Fold": 100 },
-      "64s": { "Fold": 100 },
-      "63s": { "Fold": 100 },
-      "62s": { "Fold": 100 },
-      "54s": { "Fold": 100 },
-      "53s": { "Fold": 100 },
-      "52s": { "Fold": 100 },
-      "43s": { "Fold": 100 },
-      "42s": { "Fold": 100 },
-      "32s": { "Fold": 100 },
-      "QTo": { "Fold": 100 },
-      "Q9o": { "Fold": 100 },
-      "Q8o": { "Fold": 100 },
-      "Q7o": { "Fold": 100 },
-      "Q6o": { "Fold": 100 },
-      "Q5o": { "Fold": 100 },
-      "Q4o": { "Fold": 100 },
-      "Q3o": { "Fold": 100 },
-      "Q2o": { "Fold": 100 },
-      "J2o": { "Fold": 100 },
-      "J3o": { "Fold": 100 },
-      "J4o": { "Fold": 100 },
-      "J5o": { "Fold": 100 },
-      "J6o": { "Fold": 100 },
-      "J7o": { "Fold": 100 },
-      "J8o": { "Fold": 100 },
-      "J9o": { "Fold": 100 },
-      "JTo": { "Fold": 100 },
-      "T9o": { "Fold": 100 },
-      "T8o": { "Fold": 100 },
-      "T7o": { "Fold": 100 },
-      "T6o": { "Fold": 100 },
-      "T5o": { "Fold": 100 },
-      "T4o": { "Fold": 100 },
-      "T3o": { "Fold": 100 },
-      "T2o": { "Fold": 100 },
-      "98o": { "Fold": 100 },
-      "97o": { "Fold": 100 },
-      "96o": { "Fold": 100 },
-      "95o": { "Fold": 100 },
-      "94o": { "Fold": 100 },
-      "93o": { "Fold": 100 },
-      "92o": { "Fold": 100 },
-      "87o": { "Fold": 100 },
-      "86o": { "Fold": 100 },
-      "85o": { "Fold": 100 },
-      "84o": { "Fold": 100 },
-      "83o": { "Fold": 100 },
-      "82o": { "Fold": 100 },
-      "76o": { "Fold": 100 },
-      "75o": { "Fold": 100 },
-      "74o": { "Fold": 100 },
-      "73o": { "Fold": 100 },
-      "72o": { "Fold": 100 },
-      "65o": { "Fold": 100 },
-      "64o": { "Fold": 100 },
-      "63o": { "Fold": 100 },
-      "62o": { "Fold": 100 },
-      "54o": { "Fold": 100 },
-      "53o": { "Fold": 100 },
-      "52o": { "Fold": 100 },
-      "43o": { "Fold": 100 },
-      "42o": { "Fold": 100 },
-      "32o": { "Fold": 100 },
-      "K9o": { "Fold": 100 },
-      "K8o": { "Fold": 100 },
-      "K7o": { "Fold": 100 },
-      "K6o": { "Fold": 100 },
-      "K5o": { "Fold": 100 },
-      "K4o": { "Fold": 100 },
-      "K3o": { "Fold": 100 },
-      "K2o": { "Fold": 100 },
-      "A6o": { "Fold": 100 },
-      "A5o": { "Fold": 100 },
-      "A4o": { "Fold": 100 },
-      "A3o": { "Fold": 100 },
-      "A2o": { "Fold": 100 }
-    },
-    "customActions": [ "Fold", "ALL-IN" ],
-    "updatedAt": 1770433243329
-  },
-  {
-    "id": "sc-1770426660574",
-    "name": "OPEN SHOVE - 5bb",
-    "description": "",
-    "videoLink": "",
-    "modality": "MTT",
-    "street": "PREFLOP",
-    "preflopAction": "open shove",
-    "playerCount": 9,
-    "heroPos": "UTG+1",
-    "opponents": [],
-    "stackBB": 5,
-    "heroBetSize": 2.5,
-    "ranges": {
-      "22": { "Fold": 100 },
-      "33": { "Fold": 100 },
-      "44": { "ALL-IN": 100 },
-      "55": { "ALL-IN": 100 },
-      "66": { "ALL-IN": 100 },
-      "77": { "ALL-IN": 100 },
-      "88": { "ALL-IN": 100 },
-      "99": { "ALL-IN": 100 },
-      "AA": { "ALL-IN": 100 },
-      "AKs": { "ALL-IN": 100 },
-      "AQs": { "ALL-IN": 100 },
-      "AJs": { "ALL-IN": 100 },
-      "ATs": { "ALL-IN": 100 },
-      "A9s": { "ALL-IN": 100 },
-      "A8s": { "ALL-IN": 100 },
-      "A7s": { "ALL-IN": 100 },
-      "A6s": { "ALL-IN": 100 },
-      "A5s": { "ALL-IN": 100 },
-      "A4s": { "ALL-IN": 100 },
-      "A3s": { "Fold": 100 },
-      "A2s": { "Fold": 100 },
-      "AKo": { "ALL-IN": 100 },
-      "KK": { "ALL-IN": 100 },
-      "KQs": { "ALL-IN": 100 },
-      "KJs": { "ALL-IN": 100 },
-      "KTs": { "ALL-IN": 100 },
-      "K9s": { "ALL-IN": 100 },
-      "K8s": { "Fold": 100 },
-      "K7s": { "Fold": 100 },
-      "K6s": { "Fold": 100 },
-      "Q8s": { "Fold": 100 },
-      "QTs": { "ALL-IN": 100 },
-      "Q9s": { "Fold": 100 },
-      "T9s": { "Fold": 100 },
-      "J9s": { "Fold": 100 },
-      "JTs": { "Fold": 100 },
-      "QJs": { "ALL-IN": 100 },
-      "QQ": { "ALL-IN": 100 },
-      "TT": { "ALL-IN": 100 },
-      "JJ": { "ALL-IN": 100 },
-      "T8s": { "Fold": 100 },
-      "98s": { "Fold": 100 },
-      "87s": { "Fold": 100 },
-      "A7o": { "Fold": 100 },
-      "A8o": { "Fold": 100 },
-      "A9o": { "ALL-IN": 100 },
-      "ATo": { "ALL-IN": 100 },
-      "AJo": { "ALL-IN": 100 },
-      "AQo": { "ALL-IN": 100 },
-      "KQo": { "ALL-IN": 100 },
-      "KJo": { "ALL-IN": 100 },
-      "KTo": { "Fold": 100 },
-      "QJo": { "Fold": 100 },
-      "K5s": { "Fold": 100 },
-      "K4s": { "Fold": 100 },
-      "K3s": { "Fold": 100 },
-      "K2s": { "Fold": 100 },
-      "Q7s": { "Fold": 100 },
-      "Q6s": { "Fold": 100 },
-      "Q5s": { "Fold": 100 },
-      "Q4s": { "Fold": 100 },
-      "Q3s": { "Fold": 100 },
-      "Q2s": { "Fold": 100 },
-      "J8s": { "Fold": 100 },
-      "J7s": { "Fold": 100 },
-      "J6s": { "Fold": 100 },
-      "J5s": { "Fold": 100 },
-      "J4s": { "Fold": 100 },
-      "J3s": { "Fold": 100 },
-      "J2s": { "Fold": 100 },
-      "T7s": { "Fold": 100 },
-      "T6s": { "Fold": 100 },
-      "T5s": { "Fold": 100 },
-      "T4s": { "Fold": 100 },
-      "T3s": { "Fold": 100 },
-      "T2s": { "Fold": 100 },
-      "97s": { "Fold": 100 },
-      "96s": { "Fold": 100 },
-      "95s": { "Fold": 100 },
-      "94s": { "Fold": 100 },
-      "93s": { "Fold": 100 },
-      "92s": { "Fold": 100 },
-      "86s": { "Fold": 100 },
-      "85s": { "Fold": 100 },
-      "84s": { "Fold": 100 },
-      "83s": { "Fold": 100 },
-      "82s": { "Fold": 100 },
-      "72s": { "Fold": 100 },
-      "73s": { "Fold": 100 },
-      "74s": { "Fold": 100 },
-      "75s": { "Fold": 100 },
-      "76s": { "Fold": 100 },
-      "65s": { "Fold": 100 },
-      "64s": { "Fold": 100 },
-      "63s": { "Fold": 100 },
-      "62s": { "Fold": 100 },
-      "54s": { "Fold": 100 },
-      "53s": { "Fold": 100 },
-      "52s": { "Fold": 100 },
-      "43s": { "Fold": 100 },
-      "42s": { "Fold": 100 },
-      "32s": { "Fold": 100 },
-      "QTo": { "Fold": 100 },
-      "Q9o": { "Fold": 100 },
-      "Q8o": { "Fold": 100 },
-      "Q7o": { "Fold": 100 },
-      "Q6o": { "Fold": 100 },
-      "Q5o": { "Fold": 100 },
-      "Q4o": { "Fold": 100 },
-      "Q3o": { "Fold": 100 },
-      "Q2o": { "Fold": 100 },
-      "J2o": { "Fold": 100 },
-      "J3o": { "Fold": 100 },
-      "J4o": { "Fold": 100 },
-      "J5o": { "Fold": 100 },
-      "J6o": { "Fold": 100 },
-      "J7o": { "Fold": 100 },
-      "J8o": { "Fold": 100 },
-      "J9o": { "Fold": 100 },
-      "JTo": { "Fold": 100 },
-      "T9o": { "Fold": 100 },
-      "T8o": { "Fold": 100 },
-      "T7o": { "Fold": 100 },
-      "T6o": { "Fold": 100 },
-      "T5o": { "Fold": 100 },
-      "T4o": { "Fold": 100 },
-      "T3o": { "Fold": 100 },
-      "T2o": { "Fold": 100 },
-      "98o": { "Fold": 100 },
-      "97o": { "Fold": 100 },
-      "96o": { "Fold": 100 },
-      "95o": { "Fold": 100 },
-      "94o": { "Fold": 100 },
-      "93o": { "Fold": 100 },
-      "92o": { "Fold": 100 },
-      "87o": { "Fold": 100 },
-      "86o": { "Fold": 100 },
-      "85o": { "Fold": 100 },
-      "84o": { "Fold": 100 },
-      "83o": { "Fold": 100 },
-      "82o": { "Fold": 100 },
-      "76o": { "Fold": 100 },
-      "75o": { "Fold": 100 },
-      "74o": { "Fold": 100 },
-      "73o": { "Fold": 100 },
-      "72o": { "Fold": 100 },
-      "65o": { "Fold": 100 },
-      "64o": { "Fold": 100 },
-      "63o": { "Fold": 100 },
-      "62o": { "Fold": 100 },
-      "54o": { "Fold": 100 },
-      "53o": { "Fold": 100 },
-      "52o": { "Fold": 100 },
-      "43o": { "Fold": 100 },
-      "42o": { "Fold": 100 },
-      "32o": { "Fold": 100 },
-      "K9o": { "Fold": 100 },
-      "K8o": { "Fold": 100 },
-      "K7o": { "Fold": 100 },
-      "K6o": { "Fold": 100 },
-      "K5o": { "Fold": 100 },
-      "K4o": { "Fold": 100 },
-      "K3o": { "Fold": 100 },
-      "K2o": { "Fold": 100 },
-      "A6o": { "Fold": 100 },
-      "A5o": { "Fold": 100 },
-      "A4o": { "Fold": 100 },
-      "A3o": { "Fold": 100 },
-      "A2o": { "Fold": 100 }
-    },
-    "customActions": [ "Fold", "ALL-IN" ],
-    "updatedAt": 1770433265979
-  },
-  {
-    "id": "sc-1770426694120",
-    "name": "OPEN SHOVE - 5bb",
-    "description": "",
-    "videoLink": "",
-    "modality": "MTT",
-    "street": "PREFLOP",
-    "preflopAction": "open shove",
-    "playerCount": 9,
-    "heroPos": "MP",
-    "opponents": [],
-    "stackBB": 5,
-    "heroBetSize": 2.5,
-    "ranges": {
-      "22": { "Fold": 100 },
-      "33": { "Fold": 100 },
-      "44": { "ALL-IN": 100 },
-      "55": { "ALL-IN": 100 },
-      "66": { "ALL-IN": 100 },
-      "77": { "ALL-IN": 100 },
-      "88": { "ALL-IN": 100 },
-      "99": { "ALL-IN": 100 },
-      "AA": { "ALL-IN": 100 },
-      "AKs": { "ALL-IN": 100 },
-      "AQs": { "ALL-IN": 100 },
-      "AJs": { "ALL-IN": 100 },
-      "ATs": { "ALL-IN": 100 },
-      "A9s": { "ALL-IN": 100 },
-      "A8s": { "ALL-IN": 100 },
-      "A7s": { "ALL-IN": 100 },
-      "A6s": { "ALL-IN": 100 },
-      "A5s": { "ALL-IN": 100 },
-      "A4s": { "ALL-IN": 100 },
-      "A3s": { "ALL-IN": 100 },
-      "A2s": { "ALL-IN": 100 },
-      "AKo": { "ALL-IN": 100 },
-      "KK": { "ALL-IN": 100 },
-      "KQs": { "ALL-IN": 100 },
-      "KJs": { "ALL-IN": 100 },
-      "KTs": { "ALL-IN": 100 },
-      "K9s": { "ALL-IN": 100 },
-      "K8s": { "Fold": 100 },
-      "K7s": { "Fold": 100 },
-      "K6s": { "Fold": 100 },
-      "Q8s": { "Fold": 100 },
-      "QTs": { "ALL-IN": 100 },
-      "Q9s": { "Fold": 100 },
-      "T9s": { "Fold": 100 },
-      "J9s": { "Fold": 100 },
-      "JTs": { "ALL-IN": 100 },
-      "QJs": { "ALL-IN": 100 },
-      "QQ": { "ALL-IN": 100 },
-      "TT": { "ALL-IN": 100 },
-      "JJ": { "ALL-IN": 100 },
-      "T8s": { "Fold": 100 },
-      "98s": { "Fold": 100 },
-      "87s": { "Fold": 100 },
-      "A7o": { "Fold": 100 },
-      "A8o": { "ALL-IN": 100 },
-      "A9o": { "ALL-IN": 100 },
-      "ATo": { "ALL-IN": 100 },
-      "AJo": { "ALL-IN": 100 },
-      "AQo": { "ALL-IN": 100 },
-      "KQo": { "ALL-IN": 100 },
-      "KJo": { "ALL-IN": 100 },
-      "KTo": { "ALL-IN": 100 },
-      "QJo": { "Fold": 100 },
-      "K5s": { "Fold": 100 },
-      "K4s": { "Fold": 100 },
-      "K3s": { "Fold": 100 },
-      "K2s": { "Fold": 100 },
-      "Q7s": { "Fold": 100 },
-      "Q6s": { "Fold": 100 },
-      "Q5s": { "Fold": 100 },
-      "Q4s": { "Fold": 100 },
-      "Q3s": { "Fold": 100 },
-      "Q2s": { "Fold": 100 },
-      "J8s": { "Fold": 100 },
-      "J7s": { "Fold": 100 },
-      "J6s": { "Fold": 100 },
-      "J5s": { "Fold": 100 },
-      "J4s": { "Fold": 100 },
-      "J3s": { "Fold": 100 },
-      "J2s": { "Fold": 100 },
-      "T7s": { "Fold": 100 },
-      "T6s": { "Fold": 100 },
-      "T5s": { "Fold": 100 },
-      "T4s": { "Fold": 100 },
-      "T3s": { "Fold": 100 },
-      "T2s": { "Fold": 100 },
-      "97s": { "Fold": 100 },
-      "96s": { "Fold": 100 },
-      "95s": { "Fold": 100 },
-      "94s": { "Fold": 100 },
-      "93s": { "Fold": 100 },
-      "92s": { "Fold": 100 },
-      "86s": { "Fold": 100 },
-      "85s": { "Fold": 100 },
-      "84s": { "Fold": 100 },
-      "83s": { "Fold": 100 },
-      "82s": { "Fold": 100 },
-      "72s": { "Fold": 100 },
-      "73s": { "Fold": 100 },
-      "74s": { "Fold": 100 },
-      "75s": { "Fold": 100 },
-      "76s": { "Fold": 100 },
-      "65s": { "Fold": 100 },
-      "64s": { "Fold": 100 },
-      "63s": { "Fold": 100 },
-      "62s": { "Fold": 100 },
-      "54s": { "Fold": 100 },
-      "53s": { "Fold": 100 },
-      "52s": { "Fold": 100 },
-      "43s": { "Fold": 100 },
-      "42s": { "Fold": 100 },
-      "32s": { "Fold": 100 },
-      "Q9o": { "Fold": 100 },
-      "Q8o": { "Fold": 100 },
-      "Q7o": { "Fold": 100 },
-      "Q6o": { "Fold": 100 },
-      "Q5o": { "Fold": 100 },
-      "Q4o": { "Fold": 100 },
-      "Q3o": { "Fold": 100 },
-      "Q2o": { "Fold": 100 },
-      "J2o": { "Fold": 100 },
-      "J3o": { "Fold": 100 },
-      "J4o": { "Fold": 100 },
-      "J5o": { "Fold": 100 },
-      "J6o": { "Fold": 100 },
-      "J7o": { "Fold": 100 },
-      "J8o": { "Fold": 100 },
-      "J9o": { "Fold": 100 },
-      "JTo": { "Fold": 100 },
-      "T9o": { "Fold": 100 },
-      "T8o": { "Fold": 100 },
-      "T7o": { "Fold": 100 },
-      "T6o": { "Fold": 100 },
-      "T5o": { "Fold": 100 },
-      "T4o": { "Fold": 100 },
-      "T3o": { "Fold": 100 },
-      "T2o": { "Fold": 100 },
-      "98o": { "Fold": 100 },
-      "97o": { "Fold": 100 },
-      "96o": { "Fold": 100 },
-      "95o": { "Fold": 100 },
-      "94o": { "Fold": 100 },
-      "93o": { "Fold": 100 },
-      "92o": { "Fold": 100 },
-      "87o": { "Fold": 100 },
-      "86o": { "Fold": 100 },
-      "85o": { "Fold": 100 },
-      "84o": { "Fold": 100 },
-      "83o": { "Fold": 100 },
-      "82o": { "Fold": 100 },
-      "76o": { "Fold": 100 },
-      "75o": { "Fold": 100 },
-      "74o": { "Fold": 100 },
-      "73o": { "Fold": 100 },
-      "72o": { "Fold": 100 },
-      "65o": { "Fold": 100 },
-      "64o": { "Fold": 100 },
-      "63o": { "Fold": 100 },
-      "62o": { "Fold": 100 },
-      "54o": { "Fold": 100 },
-      "53o": { "Fold": 100 },
-      "52o": { "Fold": 100 },
-      "43o": { "Fold": 100 },
-      "42o": { "Fold": 100 },
-      "32o": { "Fold": 100 },
-      "K9o": { "Fold": 100 },
-      "K8o": { "Fold": 100 },
-      "K7o": { "Fold": 100 },
-      "K6o": { "Fold": 100 },
-      "K5o": { "Fold": 100 },
-      "K4o": { "Fold": 100 },
-      "K3o": { "Fold": 100 },
-      "K2o": { "Fold": 100 },
-      "A6o": { "Fold": 100 },
-      "A5o": { "Fold": 100 },
-      "A4o": { "Fold": 100 },
-      "A3o": { "Fold": 100 },
-      "A2o": { "Fold": 100 },
-      "QTo": { "Fold": 100 }
-    },
-    "customActions": [ "Fold", "ALL-IN" ]
-  },
-  {
-    "id": "sc-1770426772232",
-    "name": "OPEN SHOVE - 5bb",
-    "description": "",
-    "videoLink": "",
-    "modality": "MTT",
-    "street": "PREFLOP",
-    "preflopAction": "open shove",
-    "playerCount": 9,
-    "heroPos": "LJ",
-    "opponents": [],
-    "stackBB": 5,
-    "heroBetSize": 2.5,
-    "ranges": {
-      "22": { "Fold": 100 },
-      "33": { "ALL-IN": 100 },
-      "44": { "ALL-IN": 100 },
-      "55": { "ALL-IN": 100 },
-      "66": { "ALL-IN": 100 },
-      "77": { "ALL-IN": 100 },
-      "88": { "ALL-IN": 100 },
-      "99": { "ALL-IN": 100 },
-      "AA": { "ALL-IN": 100 },
-      "AKs": { "ALL-IN": 100 },
-      "AQs": { "ALL-IN": 100 },
-      "AJs": { "ALL-IN": 100 },
-      "ATs": { "ALL-IN": 100 },
-      "A9s": { "ALL-IN": 100 },
-      "A8s": { "ALL-IN": 100 },
-      "A7s": { "ALL-IN": 100 },
-      "A6s": { "ALL-IN": 100 },
-      "A5s": { "ALL-IN": 100 },
-      "A4s": { "ALL-IN": 100 },
-      "A3s": { "ALL-IN": 100 },
-      "A2s": { "ALL-IN": 100 },
-      "AKo": { "ALL-IN": 100 },
-      "KK": { "ALL-IN": 100 },
-      "KQs": { "ALL-IN": 100 },
-      "KJs": { "ALL-IN": 100 },
-      "KTs": { "ALL-IN": 100 },
-      "K9s": { "ALL-IN": 100 },
-      "K8s": { "ALL-IN": 100 },
-      "K7s": { "Fold": 100 },
-      "K6s": { "Fold": 100 },
-      "Q8s": { "Fold": 100 },
-      "QTs": { "ALL-IN": 100 },
-      "Q9s": { "ALL-IN": 100 },
-      "T9s": { "Fold": 100 },
-      "J9s": { "Fold": 100 },
-      "JTs": { "ALL-IN": 100 },
-      "QJs": { "ALL-IN": 100 },
-      "QQ": { "ALL-IN": 100 },
-      "TT": { "ALL-IN": 100 },
-      "JJ": { "ALL-IN": 100 },
-      "T8s": { "Fold": 100 },
-      "98s": { "Fold": 100 },
-      "87s": { "Fold": 100 },
-      "A7o": { "ALL-IN": 100 },
-      "A8o": { "ALL-IN": 100 },
-      "A9o": { "ALL-IN": 100 },
-      "ATo": { "ALL-IN": 100 },
-      "AJo": { "ALL-IN": 100 },
-      "AQo": { "ALL-IN": 100 },
-      "KQo": { "ALL-IN": 100 },
-      "KJo": { "ALL-IN": 100 },
-      "KTo": { "ALL-IN": 100 },
-      "QJo": { "ALL-IN": 100 },
-      "K5s": { "Fold": 100 },
-      "K4s": { "Fold": 100 },
-      "K3s": { "Fold": 100 },
-      "K2s": { "Fold": 100 },
-      "Q7s": { "Fold": 100 },
-      "Q6s": { "Fold": 100 },
-      "Q5s": { "Fold": 100 },
-      "Q4s": { "Fold": 100 },
-      "Q3s": { "Fold": 100 },
-      "Q2s": { "Fold": 100 },
-      "J8s": { "Fold": 100 },
-      "J7s": { "Fold": 100 },
-      "J6s": { "Fold": 100 },
-      "J5s": { "Fold": 100 },
-      "J4s": { "Fold": 100 },
-      "J3s": { "Fold": 100 },
-      "J2s": { "Fold": 100 },
-      "T7s": { "Fold": 100 },
-      "T6s": { "Fold": 100 },
-      "T5s": { "Fold": 100 },
-      "T4s": { "Fold": 100 },
-      "T3s": { "Fold": 100 },
-      "T2s": { "Fold": 100 },
-      "97s": { "Fold": 100 },
-      "96s": { "Fold": 100 },
-      "95s": { "Fold": 100 },
-      "94s": { "Fold": 100 },
-      "93s": { "Fold": 100 },
-      "92s": { "Fold": 100 },
-      "86s": { "Fold": 100 },
-      "85s": { "Fold": 100 },
-      "84s": { "Fold": 100 },
-      "83s": { "Fold": 100 },
-      "82s": { "Fold": 100 },
-      "72s": { "Fold": 100 },
-      "73s": { "Fold": 100 },
-      "74s": { "Fold": 100 },
-      "75s": { "Fold": 100 },
-      "76s": { "Fold": 100 },
-      "65s": { "Fold": 100 },
-      "64s": { "Fold": 100 },
-      "63s": { "Fold": 100 },
-      "62s": { "Fold": 100 },
-      "54s": { "Fold": 100 },
-      "53s": { "Fold": 100 },
-      "52s": { "Fold": 100 },
-      "43s": { "Fold": 100 },
-      "42s": { "Fold": 100 },
-      "32s": { "Fold": 100 },
-      "Q9o": { "Fold": 100 },
-      "Q8o": { "Fold": 100 },
-      "Q7o": { "Fold": 100 },
-      "Q6o": { "Fold": 100 },
-      "Q5o": { "Fold": 100 },
-      "Q4o": { "Fold": 100 },
-      "Q3o": { "Fold": 100 },
-      "Q2o": { "Fold": 100 },
-      "J2o": { "Fold": 100 },
-      "J3o": { "Fold": 100 },
-      "J4o": { "Fold": 100 },
-      "J5o": { "Fold": 100 },
-      "J6o": { "Fold": 100 },
-      "J7o": { "Fold": 100 },
-      "J8o": { "Fold": 100 },
-      "J9o": { "Fold": 100 },
-      "JTo": { "Fold": 100 },
-      "T9o": { "Fold": 100 },
-      "T8o": { "Fold": 100 },
-      "T7o": { "Fold": 100 },
-      "T6o": { "Fold": 100 },
-      "T5o": { "Fold": 100 },
-      "T4o": { "Fold": 100 },
-      "T3o": { "Fold": 100 },
-      "T2o": { "Fold": 100 },
-      "98o": { "Fold": 100 },
-      "97o": { "Fold": 100 },
-      "96o": { "Fold": 100 },
-      "95o": { "Fold": 100 },
-      "94o": { "Fold": 100 },
-      "93o": { "Fold": 100 },
-      "92o": { "Fold": 100 },
-      "87o": { "Fold": 100 },
-      "86o": { "Fold": 100 },
-      "85o": { "Fold": 100 },
-      "84o": { "Fold": 100 },
-      "83o": { "Fold": 100 },
-      "82o": { "Fold": 100 },
-      "76o": { "Fold": 100 },
-      "75o": { "Fold": 100 },
-      "74o": { "Fold": 100 },
-      "73o": { "Fold": 100 },
-      "72o": { "Fold": 100 },
-      "65o": { "Fold": 100 },
-      "64o": { "Fold": 100 },
-      "63o": { "Fold": 100 },
-      "62o": { "Fold": 100 },
-      "54o": { "Fold": 100 },
-      "53o": { "Fold": 100 },
-      "52o": { "Fold": 100 },
-      "43o": { "Fold": 100 },
-      "42o": { "Fold": 100 },
-      "32o": { "Fold": 100 },
-      "K9o": { "Fold": 100 },
-      "K8o": { "Fold": 100 },
-      "K7o": { "Fold": 100 },
-      "K6o": { "Fold": 100 },
-      "K5o": { "Fold": 100 },
-      "K4o": { "Fold": 100 },
-      "K3o": { "Fold": 100 },
-      "K2o": { "Fold": 100 },
-      "A6o": { "Fold": 100 },
-      "A5o": { "Fold": 100 },
-      "A4o": { "Fold": 100 },
-      "A3o": { "Fold": 100 },
-      "A2o": { "Fold": 100 },
-      "QTo": { "Fold": 100 }
-    },
-    "customActions": [ "Fold", "ALL-IN" ]
-  },
-  {
-    "id": "sc-1770426815108",
-    "name": "OPEN SHOVE - 5bb",
-    "description": "",
-    "videoLink": "",
-    "modality": "MTT",
-    "street": "PREFLOP",
-    "preflopAction": "open shove",
-    "playerCount": 9,
-    "heroPos": "HJ",
-    "opponents": [],
-    "stackBB": 5,
-    "heroBetSize": 2.5,
-    "ranges": {
-      "22": { "Fold": 100 },
-      "33": { "ALL-IN": 100 },
-      "44": { "ALL-IN": 100 },
-      "55": { "ALL-IN": 100 },
-      "66": { "ALL-IN": 100 },
-      "77": { "ALL-IN": 100 },
-      "88": { "ALL-IN": 100 },
-      "99": { "ALL-IN": 100 },
-      "AA": { "ALL-IN": 100 },
-      "AKs": { "ALL-IN": 100 },
-      "AQs": { "ALL-IN": 100 },
-      "AJs": { "ALL-IN": 100 },
-      "ATs": { "ALL-IN": 100 },
-      "A9s": { "ALL-IN": 100 },
-      "A8s": { "ALL-IN": 100 },
-      "A7s": { "ALL-IN": 100 },
-      "A6s": { "ALL-IN": 100 },
-      "A5s": { "ALL-IN": 100 },
-      "A4s": { "ALL-IN": 100 },
-      "A3s": { "ALL-IN": 100 },
-      "A2s": { "ALL-IN": 100 },
-      "AKo": { "ALL-IN": 100 },
-      "KK": { "ALL-IN": 100 },
-      "KQs": { "ALL-IN": 100 },
-      "KJs": { "ALL-IN": 100 },
-      "KTs": { "ALL-IN": 100 },
-      "K9s": { "ALL-IN": 100 },
-      "K8s": { "ALL-IN": 100 },
-      "K7s": { "ALL-IN": 100 },
-      "K6s": { "ALL-IN": 100 },
-      "Q8s": { "ALL-IN": 100 },
-      "QTs": { "ALL-IN": 100 },
-      "Q9s": { "ALL-IN": 100 },
-      "T9s": { "ALL-IN": 100 },
-      "J9s": { "ALL-IN": 100 },
-      "JTs": { "ALL-IN": 100 },
-      "QJs": { "ALL-IN": 100 },
-      "QQ": { "ALL-IN": 100 },
-      "TT": { "ALL-IN": 100 },
-      "JJ": { "ALL-IN": 100 },
-      "T8s": { "Fold": 100 },
-      "98s": { "Fold": 100 },
-      "87s": { "Fold": 100 },
-      "A7o": { "ALL-IN": 100 },
-      "A8o": { "ALL-IN": 100 },
-      "A9o": { "ALL-IN": 100 },
-      "ATo": { "ALL-IN": 100 },
-      "AJo": { "ALL-IN": 100 },
-      "AQo": { "ALL-IN": 100 },
-      "KQo": { "ALL-IN": 100 },
-      "KJo": { "ALL-IN": 100 },
-      "KTo": { "ALL-IN": 100 },
-      "QJo": { "ALL-IN": 100 },
-      "K5s": { "Fold": 100 },
-      "K4s": { "Fold": 100 },
-      "K2s": { "Fold": 100 },
-      "Q7s": { "Fold": 100 },
-      "Q6s": { "Fold": 100 },
-      "Q5s": { "Fold": 100 },
-      "Q4s": { "Fold": 100 },
-      "Q3s": { "Fold": 100 },
-      "Q2s": { "Fold": 100 },
-      "J8s": { "Fold": 100 },
-      "J7s": { "Fold": 100 },
-      "J6s": { "Fold": 100 },
-      "J5s": { "Fold": 100 },
-      "J4s": { "Fold": 100 },
-      "J3s": { "Fold": 100 },
-      "J2s": { "Fold": 100 },
-      "T7s": { "Fold": 100 },
-      "T6s": { "Fold": 100 },
-      "T5s": { "Fold": 100 },
-      "T4s": { "Fold": 100 },
-      "T3s": { "Fold": 100 },
-      "T2s": { "Fold": 100 },
-      "97s": { "Fold": 100 },
-      "96s": { "Fold": 100 },
-      "95s": { "Fold": 100 },
-      "94s": { "Fold": 100 },
-      "93s": { "Fold": 100 },
-      "92s": { "Fold": 100 },
-      "86s": { "Fold": 100 },
-      "85s": { "Fold": 100 },
-      "84s": { "Fold": 100 },
-      "83s": { "Fold": 100 },
-      "82s": { "Fold": 100 },
-      "72s": { "Fold": 100 },
-      "73s": { "Fold": 100 },
-      "74s": { "Fold": 100 },
-      "75s": { "Fold": 100 },
-      "76s": { "Fold": 100 },
-      "65s": { "Fold": 100 },
-      "64s": { "Fold": 100 },
-      "63s": { "Fold": 100 },
-      "62s": { "Fold": 100 },
-      "54s": { "Fold": 100 },
-      "53s": { "Fold": 100 },
-      "52s": { "Fold": 100 },
-      "43s": { "Fold": 100 },
-      "42s": { "Fold": 100 },
-      "32s": { "Fold": 100 },
-      "Q9o": { "Fold": 100 },
-      "Q8o": { "Fold": 100 },
-      "Q7o": { "Fold": 100 },
-      "Q6o": { "Fold": 100 },
-      "Q5o": { "Fold": 100 },
-      "Q4o": { "Fold": 100 },
-      "Q3o": { "Fold": 100 },
-      "Q2o": { "Fold": 100 },
-      "J2o": { "Fold": 100 },
-      "J3o": { "Fold": 100 },
-      "J4o": { "Fold": 100 },
-      "J5o": { "Fold": 100 },
-      "J6o": { "Fold": 100 },
-      "J7o": { "Fold": 100 },
-      "J8o": { "Fold": 100 },
-      "J9o": { "Fold": 100 },
-      "JTo": { "Fold": 100 },
-      "T9o": { "Fold": 100 },
-      "T8o": { "Fold": 100 },
-      "T7o": { "Fold": 100 },
-      "T6o": { "Fold": 100 },
-      "T5o": { "Fold": 100 },
-      "T4o": { "Fold": 100 },
-      "T3o": { "Fold": 100 },
-      "T2o": { "Fold": 100 },
-      "98o": { "Fold": 100 },
-      "97o": { "Fold": 100 },
-      "96o": { "Fold": 100 },
-      "95o": { "Fold": 100 },
-      "94o": { "Fold": 100 },
-      "93o": { "Fold": 100 },
-      "92o": { "Fold": 100 },
-      "87o": { "Fold": 100 },
-      "86o": { "Fold": 100 },
-      "85o": { "Fold": 100 },
-      "84o": { "Fold": 100 },
-      "83o": { "Fold": 100 },
-      "82o": { "Fold": 100 },
-      "76o": { "Fold": 100 },
-      "75o": { "Fold": 100 },
-      "74o": { "Fold": 100 },
-      "73o": { "Fold": 100 },
-      "72o": { "Fold": 100 },
-      "65o": { "Fold": 100 },
-      "64o": { "Fold": 100 },
-      "63o": { "Fold": 100 },
-      "62o": { "Fold": 100 },
-      "54o": { "Fold": 100 },
-      "53o": { "Fold": 100 },
-      "52o": { "Fold": 100 },
-      "43o": { "Fold": 100 },
-      "42o": { "Fold": 100 },
-      "32o": { "Fold": 100 },
-      "K9o": { "ALL-IN": 100 },
-      "K8o": { "Fold": 100 },
-      "K7o": { "Fold": 100 },
-      "K6o": { "Fold": 100 },
-      "K5o": { "Fold": 100 },
-      "K4o": { "Fold": 100 },
-      "K3o": { "Fold": 100 },
-      "K2o": { "Fold": 100 },
-      "A6o": { "ALL-IN": 100 },
-      "A5o": { "ALL-IN": 100 },
-      "A4o": { "ALL-IN": 100 },
-      "A3o": { "Fold": 100 },
-      "A2o": { "Fold": 100 },
-      "QTo": { "ALL-IN": 100 }
-    },
-    "customActions": [ "Fold", "ALL-IN" ]
-  },
-  {
-    "id": "sc-1770426948340",
-    "name": "OPEN SHOVE - 5bb",
-    "description": "",
-    "videoLink": "",
-    "modality": "MTT",
-    "street": "PREFLOP",
-    "preflopAction": "open shove",
-    "playerCount": 9,
-    "heroPos": "CO",
-    "opponents": [],
-    "stackBB": 5,
-    "heroBetSize": 2.5,
-    "ranges": {
-      "22": { "ALL-IN": 100 },
-      "33": { "ALL-IN": 100 },
-      "44": { "ALL-IN": 100 },
-      "55": { "ALL-IN": 100 },
-      "66": { "ALL-IN": 100 },
-      "77": { "ALL-IN": 100 },
-      "88": { "ALL-IN": 100 },
-      "99": { "ALL-IN": 100 },
-      "AA": { "ALL-IN": 100 },
-      "AKs": { "ALL-IN": 100 },
-      "AQs": { "ALL-IN": 100 },
-      "AJs": { "ALL-IN": 100 },
-      "ATs": { "ALL-IN": 100 },
-      "A9s": { "ALL-IN": 100 },
-      "A8s": { "ALL-IN": 100 },
-      "A7s": { "ALL-IN": 100 },
-      "A6s": { "ALL-IN": 100 },
-      "A5s": { "ALL-IN": 100 },
-      "A4s": { "ALL-IN": 100 },
-      "A3s": { "ALL-IN": 100 },
-      "A2s": { "ALL-IN": 100 },
-      "AKo": { "ALL-IN": 100 },
-      "KK": { "ALL-IN": 100 },
-      "KQs": { "ALL-IN": 100 },
-      "KJs": { "ALL-IN": 100 },
-      "KTs": { "ALL-IN": 100 },
-      "K9s": { "ALL-IN": 100 },
-      "K8s": { "ALL-IN": 100 },
-      "K7s": { "ALL-IN": 100 },
-      "K6s": { "ALL-IN": 100 },
-      "Q8s": { "ALL-IN": 100 },
-      "QTs": { "ALL-IN": 100 },
-      "Q9s": { "ALL-IN": 100 },
-      "T9s": { "ALL-IN": 100 },
-      "J9s": { "ALL-IN": 100 },
-      "JTs": { "ALL-IN": 100 },
-      "QJs": { "ALL-IN": 100 },
-      "QQ": { "ALL-IN": 100 },
-      "TT": { "ALL-IN": 100 },
-      "JJ": { "ALL-IN": 100 },
-      "T8s": { "Fold": 100 },
-      "98s": { "Fold": 100 },
-      "87s": { "Fold": 100 },
-      "A7o": { "ALL-IN": 100 },
-      "A8o": { "ALL-IN": 100 },
-      "A9o": { "ALL-IN": 100 },
-      "ATo": { "ALL-IN": 100 },
-      "AJo": { "ALL-IN": 100 },
-      "AQo": { "ALL-IN": 100 },
-      "KQo": { "ALL-IN": 100 },
-      "KJo": { "ALL-IN": 100 },
-      "KTo": { "ALL-IN": 100 },
-      "QJo": { "ALL-IN": 100 },
-      "K5s": { "ALL-IN": 100 },
-      "K4s": { "ALL-IN": 100 },
-      "K2s": { "Fold": 100 },
-      "Q7s": { "Fold": 100 },
-      "Q6s": { "Fold": 100 },
-      "Q5s": { "Fold": 100 },
-      "Q4s": { "Fold": 100 },
-      "Q3s": { "Fold": 100 },
-      "Q2s": { "Fold": 100 },
-      "J8s": { "ALL-IN": 100 },
-      "J7s": { "Fold": 100 },
-      "J6s": { "Fold": 100 },
-      "J5s": { "Fold": 100 },
-      "J4s": { "Fold": 100 },
-      "J3s": { "Fold": 100 },
-      "J2s": { "Fold": 100 },
-      "T7s": { "Fold": 100 },
-      "T6s": { "Fold": 100 },
-      "T5s": { "Fold": 100 },
-      "T4s": { "Fold": 100 },
-      "T3s": { "Fold": 100 },
-      "T2s": { "Fold": 100 },
-      "97s": { "Fold": 100 },
-      "96s": { "Fold": 100 },
-      "95s": { "Fold": 100 },
-      "94s": { "Fold": 100 },
-      "93s": { "Fold": 100 },
-      "92s": { "Fold": 100 },
-      "86s": { "Fold": 100 },
-      "85s": { "Fold": 100 },
-      "84s": { "Fold": 100 },
-      "83s": { "Fold": 100 },
-      "82s": { "Fold": 100 },
-      "72s": { "Fold": 100 },
-      "73s": { "Fold": 100 },
-      "74s": { "Fold": 100 },
-      "75s": { "Fold": 100 },
-      "76s": { "Fold": 100 },
-      "65s": { "Fold": 100 },
-      "64s": { "Fold": 100 },
-      "63s": { "Fold": 100 },
-      "62s": { "Fold": 100 },
-      "54s": { "Fold": 100 },
-      "53s": { "Fold": 100 },
-      "52s": { "Fold": 100 },
-      "43s": { "Fold": 100 },
-      "42s": { "Fold": 100 },
-      "32s": { "Fold": 100 },
-      "Q9o": { "ALL-IN": 100 },
-      "Q8o": { "Fold": 100 },
-      "Q7o": { "Fold": 100 },
-      "Q6o": { "Fold": 100 },
-      "Q5o": { "Fold": 100 },
-      "Q4o": { "Fold": 100 },
-      "Q3o": { "Fold": 100 },
-      "Q2o": { "Fold": 100 },
-      "J2o": { "Fold": 100 },
-      "J3o": { "Fold": 100 },
-      "J4o": { "Fold": 100 },
-      "J5o": { "Fold": 100 },
-      "J6o": { "Fold": 100 },
-      "J7o": { "Fold": 100 },
-      "J8o": { "Fold": 100 },
-      "J9o": { "Fold": 100 },
-      "JTo": { "ALL-IN": 100 },
-      "T9o": { "Fold": 100 },
-      "T8o": { "Fold": 100 },
-      "T7o": { "Fold": 100 },
-      "T6o": { "Fold": 100 },
-      "T5o": { "Fold": 100 },
-      "T4o": { "Fold": 100 },
-      "T3o": { "Fold": 100 },
-      "T2o": { "Fold": 100 },
-      "98o": { "Fold": 100 },
-      "97o": { "Fold": 100 },
-      "96o": { "Fold": 100 },
-      "95o": { "Fold": 100 },
-      "94o": { "Fold": 100 },
-      "93o": { "Fold": 100 },
-      "92o": { "Fold": 100 },
-      "87o": { "Fold": 100 },
-      "86o": { "Fold": 100 },
-      "85o": { "Fold": 100 },
-      "84o": { "Fold": 100 },
-      "83o": { "Fold": 100 },
-      "82o": { "Fold": 100 },
-      "76o": { "Fold": 100 },
-      "75o": { "Fold": 100 },
-      "74o": { "Fold": 100 },
-      "73o": { "Fold": 100 },
-      "72o": { "Fold": 100 },
-      "65o": { "Fold": 100 },
-      "64o": { "Fold": 100 },
-      "63o": { "Fold": 100 },
-      "62o": { "Fold": 100 },
-      "54o": { "Fold": 100 },
-      "53o": { "Fold": 100 },
-      "52o": { "Fold": 100 },
-      "43o": { "Fold": 100 },
-      "42o": { "Fold": 100 },
-      "32o": { "Fold": 100 },
-      "K9o": { "ALL-IN": 100 },
-      "K8o": { "ALL-IN": 100 },
-      "K7o": { "Fold": 100 },
-      "K6o": { "Fold": 100 },
-      "K5o": { "Fold": 100 },
-      "K4o": { "Fold": 100 },
-      "K3o": { "Fold": 100 },
-      "K2o": { "Fold": 100 },
-      "A6o": { "ALL-IN": 100 },
-      "A5o": { "ALL-IN": 100 },
-      "A4o": { "ALL-IN": 100 },
-      "A3o": { "ALL-IN": 100 },
-      "A2o": { "ALL-IN": 100 },
-      "QTo": { "ALL-IN": 100 }
-    },
-    "customActions": [ "Fold", "ALL-IN" ]
-  },
-  {
-    "id": "sc-1770426983850",
-    "name": "OPEN SHOVE - 5bb",
-    "description": "",
-    "videoLink": "",
-    "modality": "MTT",
-    "street": "PREFLOP",
-    "preflopAction": "open shove",
-    "playerCount": 9,
-    "heroPos": "BTN",
-    "opponents": [],
-    "stackBB": 5,
-    "heroBetSize": 2.5,
-    "ranges": {
-      "22": { "ALL-IN": 100 },
-      "33": { "ALL-IN": 100 },
-      "44": { "ALL-IN": 100 },
-      "55": { "ALL-IN": 100 },
-      "66": { "ALL-IN": 100 },
-      "77": { "ALL-IN": 100 },
-      "88": { "ALL-IN": 100 },
-      "99": { "ALL-IN": 100 },
-      "AA": { "ALL-IN": 100 },
-      "AKs": { "ALL-IN": 100 },
-      "AQs": { "ALL-IN": 100 },
-      "AJs": { "ALL-IN": 100 },
-      "ATs": { "ALL-IN": 100 },
-      "A9s": { "ALL-IN": 100 },
-      "A8s": { "ALL-IN": 100 },
-      "A7s": { "ALL-IN": 100 },
-      "A6s": { "ALL-IN": 100 },
-      "A5s": { "ALL-IN": 100 },
-      "A4s": { "ALL-IN": 100 },
-      "A3s": { "ALL-IN": 100 },
-      "A2s": { "ALL-IN": 100 },
-      "AKo": { "ALL-IN": 100 },
-      "KK": { "ALL-IN": 100 },
-      "KQs": { "ALL-IN": 100 },
-      "KJs": { "ALL-IN": 100 },
-      "KTs": { "ALL-IN": 100 },
-      "K9s": { "ALL-IN": 100 },
-      "K8s": { "ALL-IN": 100 },
-      "K7s": { "ALL-IN": 100 },
-      "K6s": { "ALL-IN": 100 },
-      "Q8s": { "ALL-IN": 100 },
-      "QTs": { "ALL-IN": 100 },
-      "Q9s": { "ALL-IN": 100 },
-      "T9s": { "ALL-IN": 100 },
-      "J9s": { "ALL-IN": 100 },
-      "JTs": { "ALL-IN": 100 },
-      "QJs": { "ALL-IN": 100 },
-      "QQ": { "ALL-IN": 100 },
-      "TT": { "ALL-IN": 100 },
-      "JJ": { "ALL-IN": 100 },
-      "T8s": { "ALL-IN": 100 },
-      "98s": { "ALL-IN": 100 },
-      "87s": { "Fold": 100 },
-      "A7o": { "ALL-IN": 100 },
-      "A8o": { "ALL-IN": 100 },
-      "A9o": { "ALL-IN": 100 },
-      "ATo": { "ALL-IN": 100 },
-      "AJo": { "ALL-IN": 100 },
-      "AQo": { "ALL-IN": 100 },
-      "KQo": { "ALL-IN": 100 },
-      "KJo": { "ALL-IN": 100 },
-      "KTo": { "ALL-IN": 100 },
-      "QJo": { "ALL-IN": 100 },
-      "K5s": { "ALL-IN": 100 },
-      "K4s": { "ALL-IN": 100 },
-      "K2s": { "ALL-IN": 100 },
-      "Q7s": { "ALL-IN": 100 },
-      "Q6s": { "ALL-IN": 100 },
-      "Q5s": { "ALL-IN": 100 },
-      "Q4s": { "Fold": 100 },
-      "Q3s": { "Fold": 100 },
-      "Q2s": { "Fold": 100 },
-      "J8s": { "ALL-IN": 100 },
-      "J7s": { "ALL-IN": 100 },
-      "J6s": { "Fold": 100 },
-      "J5s": { "Fold": 100 },
-      "J4s": { "Fold": 100 },
-      "J3s": { "Fold": 100 },
-      "J2s": { "Fold": 100 },
-      "T7s": { "Fold": 100 },
-      "T6s": { "Fold": 100 },
-      "T5s": { "Fold": 100 },
-      "T4s": { "Fold": 100 },
-      "T3s": { "Fold": 100 },
-      "T2s": { "Fold": 100 },
-      "97s": { "Fold": 100 },
-      "96s": { "Fold": 100 },
-      "95s": { "Fold": 100 },
-      "94s": { "Fold": 100 },
-      "93s": { "Fold": 100 },
-      "92s": { "Fold": 100 },
-      "86s": { "Fold": 100 },
-      "85s": { "Fold": 100 },
-      "84s": { "Fold": 100 },
-      "83s": { "Fold": 100 },
-      "82s": { "Fold": 100 },
-      "72s": { "Fold": 100 },
-      "73s": { "Fold": 100 },
-      "74s": { "Fold": 100 },
-      "75s": { "Fold": 100 },
-      "76s": { "Fold": 100 },
-      "65s": { "Fold": 100 },
-      "64s": { "Fold": 100 },
-      "63s": { "Fold": 100 },
-      "62s": { "Fold": 100 },
-      "54s": { "Fold": 100 },
-      "53s": { "Fold": 100 },
-      "52s": { "Fold": 100 },
-      "43s": { "Fold": 100 },
-      "42s": { "Fold": 100 },
-      "32s": { "Fold": 100 },
-      "Q9o": { "ALL-IN": 100 },
-      "Q8o": { "ALL-IN": 100 },
-      "Q7o": { "Fold": 100 },
-      "Q6o": { "Fold": 100 },
-      "Q5o": { "Fold": 100 },
-      "Q4o": { "Fold": 100 },
-      "Q3o": { "Fold": 100 },
-      "Q2o": { "Fold": 100 },
-      "J2o": { "Fold": 100 },
-      "J3o": { "Fold": 100 },
-      "J4o": { "Fold": 100 },
-      "J5o": { "Fold": 100 },
-      "J6o": { "Fold": 100 },
-      "J7o": { "Fold": 100 },
-      "J8o": { "Fold": 100 },
-      "J9o": { "ALL-IN": 100 },
-      "JTo": { "ALL-IN": 100 },
-      "T9o": { "Fold": 100 },
-      "T8o": { "Fold": 100 },
-      "T7o": { "Fold": 100 },
-      "T6o": { "Fold": 100 },
-      "T5o": { "Fold": 100 },
-      "T4o": { "Fold": 100 },
-      "T3o": { "Fold": 100 },
-      "T2o": { "Fold": 100 },
-      "98o": { "Fold": 100 },
-      "97o": { "Fold": 100 },
-      "96o": { "Fold": 100 },
-      "95o": { "Fold": 100 },
-      "94o": { "Fold": 100 },
-      "93o": { "Fold": 100 },
-      "92o": { "Fold": 100 },
-      "87o": { "Fold": 100 },
-      "86o": { "Fold": 100 },
-      "85o": { "Fold": 100 },
-      "84o": { "Fold": 100 },
-      "83o": { "Fold": 100 },
-      "82o": { "Fold": 100 },
-      "76o": { "Fold": 100 },
-      "75o": { "Fold": 100 },
-      "74o": { "Fold": 100 },
-      "73o": { "Fold": 100 },
-      "72o": { "Fold": 100 },
-      "65o": { "Fold": 100 },
-      "64o": { "Fold": 100 },
-      "63o": { "Fold": 100 },
-      "62o": { "Fold": 100 },
-      "54o": { "Fold": 100 },
-      "53o": { "Fold": 100 },
-      "52o": { "Fold": 100 },
-      "43o": { "Fold": 100 },
-      "42o": { "Fold": 100 },
-      "32o": { "Fold": 100 },
-      "K9o": { "ALL-IN": 100 },
-      "K8o": { "ALL-IN": 100 },
-      "K7o": { "ALL-IN": 100 },
-      "K6o": { "ALL-IN": 100 },
-      "K5o": { "ALL-IN": 100 },
-      "K4o": { "Fold": 100 },
-      "K3o": { "Fold": 100 },
-      "K2o": { "Fold": 100 },
-      "A6o": { "ALL-IN": 100 },
-      "A5o": { "ALL-IN": 100 },
-      "A4o": { "ALL-IN": 100 },
-      "A3o": { "ALL-IN": 100 },
-      "A2o": { "ALL-IN": 100 },
-      "QTo": { "ALL-IN": 100 }
-    },
-    "customActions": [ "Fold", "ALL-IN" ]
-  },
-  {
-    "id": "sc-1770427042804",
-    "name": "OPEN SHOVE - 5bb",
-    "description": "",
-    "videoLink": "",
-    "modality": "MTT",
-    "street": "PREFLOP",
-    "preflopAction": "open shove",
-    "playerCount": 9,
-    "heroPos": "SB",
-    "opponents": [],
-    "stackBB": 5,
-    "heroBetSize": 2.5,
-    "ranges": {
-      "22": { "ALL-IN": 100 },
-      "33": { "ALL-IN": 100 },
-      "44": { "ALL-IN": 100 },
-      "55": { "ALL-IN": 100 },
-      "66": { "ALL-IN": 100 },
-      "77": { "ALL-IN": 100 },
-      "88": { "ALL-IN": 100 },
-      "99": { "ALL-IN": 100 },
-      "AA": { "ALL-IN": 100 },
-      "AKs": { "ALL-IN": 100 },
-      "AQs": { "ALL-IN": 100 },
-      "AJs": { "ALL-IN": 100 },
-      "ATs": { "ALL-IN": 100 },
-      "A9s": { "ALL-IN": 100 },
-      "A8s": { "ALL-IN": 100 },
-      "A7s": { "ALL-IN": 100 },
-      "A6s": { "ALL-IN": 100 },
-      "A5s": { "ALL-IN": 100 },
-      "A4s": { "ALL-IN": 100 },
-      "A3s": { "ALL-IN": 100 },
-      "A2s": { "ALL-IN": 100 },
-      "AKo": { "ALL-IN": 100 },
-      "KK": { "ALL-IN": 100 },
-      "KQs": { "ALL-IN": 100 },
-      "KJs": { "ALL-IN": 100 },
-      "KTs": { "ALL-IN": 100 },
-      "K9s": { "ALL-IN": 100 },
-      "K8s": { "ALL-IN": 100 },
-      "K7s": { "ALL-IN": 100 },
-      "K6s": { "ALL-IN": 100 },
-      "Q8s": { "ALL-IN": 100 },
-      "QTs": { "ALL-IN": 100 },
-      "Q9s": { "ALL-IN": 100 },
-      "T9s": { "ALL-IN": 100 },
-      "J9s": { "ALL-IN": 100 },
-      "JTs": { "ALL-IN": 100 },
-      "QJs": { "ALL-IN": 100 },
-      "QQ": { "ALL-IN": 100 },
-      "TT": { "ALL-IN": 100 },
-      "JJ": { "ALL-IN": 100 },
-      "T8s": { "ALL-IN": 100 },
-      "98s": { "ALL-IN": 100 },
-      "87s": { "ALL-IN": 100 },
-      "A7o": { "ALL-IN": 100 },
-      "A8o": { "ALL-IN": 100 },
-      "A9o": { "ALL-IN": 100 },
-      "ATo": { "ALL-IN": 100 },
-      "AJo": { "ALL-IN": 100 },
-      "AQo": { "ALL-IN": 100 },
-      "KQo": { "ALL-IN": 100 },
-      "KJo": { "ALL-IN": 100 }, // Fix duplicate property: was KJs at line 1492
-      "KTo": { "ALL-IN": 100 },
-      "QJo": { "ALL-IN": 100 },
-      "K5s": { "ALL-IN": 100 },
-      "K4s": { "ALL-IN": 100 },
-      "K2s": { "ALL-IN": 100 },
-      "Q7s": { "ALL-IN": 100 },
-      "Q6s": { "ALL-IN": 100 },
-      "Q5s": { "ALL-IN": 100 },
-      "Q4s": { "ALL-IN": 100 },
-      "Q3s": { "ALL-IN": 100 },
-      "Q2s": { "ALL-IN": 100 },
-      "J8s": { "ALL-IN": 100 },
-      "J7s": { "ALL-IN": 100 },
-      "J6s": { "ALL-IN": 100 },
-      "J5s": { "ALL-IN": 100 },
-      "J4s": { "ALL-IN": 100 },
-      "J3s": { "ALL-IN": 100 },
-      "J2s": { "ALL-IN": 100 },
-      "T7s": { "ALL-IN": 100 },
-      "T6s": { "ALL-IN": 100 },
-      "T5s": { "ALL-IN": 100 },
-      "T4s": { "ALL-IN": 100 },
-      "T3s": { "ALL-IN": 100 },
-      "T2s": { "ALL-IN": 100 },
-      "97s": { "ALL-IN": 100 },
-      "96s": { "ALL-IN": 100 },
-      "95s": { "ALL-IN": 100 },
-      "94s": { "Fold": 100 },
-      "93s": { "Fold": 100 },
-      "92s": { "Fold": 100 },
-      "86s": { "ALL-IN": 100 },
-      "85s": { "ALL-IN": 100 },
-      "84s": { "Fold": 100 },
-      "83s": { "Fold": 100 },
-      "82s": { "Fold": 100 },
-      "72s": { "Fold": 100 },
-      "73s": { "Fold": 100 },
-      "74s": { "Fold": 100 },
-      "75s": { "ALL-IN": 100 },
-      "76s": { "ALL-IN": 100 },
-      "65s": { "ALL-IN": 100 },
-      "64s": { "Fold": 100 },
-      "63s": { "Fold": 100 },
-      "62s": { "Fold": 100 },
-      "54s": { "Fold": 100 },
-      "53s": { "Fold": 100 },
-      "52s": { "Fold": 100 },
-      "43s": { "Fold": 100 },
-      "42s": { "Fold": 100 },
-      "32s": { "Fold": 100 },
-      "Q9o": { "ALL-IN": 100 },
-      "Q8o": { "ALL-IN": 100 },
-      "Q7o": { "ALL-IN": 100 },
-      "Q6o": { "ALL-IN": 100 },
-      "Q5o": { "ALL-IN": 100 },
-      "Q4o": { "ALL-IN": 100 },
-      "Q3o": { "ALL-IN": 100 },
-      "Q2o": { "ALL-IN": 100 },
-      "J2o": { "ALL-IN": 100 },
-      "J3o": { "ALL-IN": 100 },
-      "J4o": { "ALL-IN": 100 },
-      "J5o": { "ALL-IN": 100 },
-      "J6o": { "ALL-IN": 100 },
-      "J7o": { "ALL-IN": 100 },
-      "J8o": { "ALL-IN": 100 },
-      "J9o": { "ALL-IN": 100 },
-      "JTo": { "ALL-IN": 100 },
-      "T9o": { "ALL-IN": 100 },
-      "T8o": { "ALL-IN": 100 },
-      "T7o": { "ALL-IN": 100 },
-      "T6o": { "ALL-IN": 100 },
-      "T5o": { "ALL-IN": 100 },
-      "T4o": { "Fold": 100 },
-      "T3o": { "Fold": 100 },
-      "T2o": { "Fold": 100 },
-      "98o": { "ALL-IN": 100 },
-      "97o": { "ALL-IN": 100 },
-      "96o": { "ALL-IN": 100 },
-      "95o": { "Fold": 100 },
-      "94o": { "Fold": 100 },
-      "93o": { "Fold": 100 },
-      "92o": { "Fold": 100 },
-      "87o": { "ALL-IN": 100 },
-      "86o": { "Fold": 100 },
-      "85o": { "Fold": 100 },
-      "84o": { "Fold": 100 },
-      "83o": { "Fold": 100 },
-      "82o": { "Fold": 100 },
-      "76o": { "Fold": 100 },
-      "75o": { "Fold": 100 },
-      "74o": { "Fold": 100 },
-      "73o": { "Fold": 100 },
-      "72o": { "Fold": 100 },
-      "65o": { "Fold": 100 },
-      "64o": { "Fold": 100 },
-      "63o": { "Fold": 100 },
-      "62o": { "Fold": 100 },
-      "54o": { "Fold": 100 },
-      "53o": { "Fold": 100 },
-      "52o": { "Fold": 100 },
-      "43o": { "Fold": 100 },
-      "42o": { "Fold": 100 },
-      "32o": { "Fold": 100 },
-      "K9o": { "ALL-IN": 100 },
-      "K8o": { "ALL-IN": 100 },
-      "K7o": { "ALL-IN": 100 },
-      "K6o": { "ALL-IN": 100 },
-      "K5o": { "ALL-IN": 100 },
-      "K4o": { "ALL-IN": 100 },
-      "K3o": { "ALL-IN": 100 },
-      "K2o": { "ALL-IN": 100 },
-      "A6o": { "ALL-IN": 100 },
-      "A5o": { "ALL-IN": 100 },
-      "A4o": { "ALL-IN": 100 },
-      "A3o": { "ALL-IN": 100 },
-      "A2o": { "ALL-IN": 100 },
-      "QTo": { "ALL-IN": 100 }
-    },
-    "customActions": [ "Fold", "ALL-IN" ]
-  }
+  { "id": "SC-04LWB2L-0", "name": "OPEN SHOVE - 10BB", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "UTG", "opponents": [], "stackBB": 10, "heroBetSize": 2.5, "ranges": { "22": { "Fold": 100 }, "33": { "Fold": 100 }, "44": { "Fold": 100 }, "55": { "Fold": 100 }, "66": { "Fold": 100 }, "77": { "Fold": 100 }, "88": { "ALL-IN": 100 }, "99": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "AKs": { "ALL-IN": 100 }, "AQs": { "ALL-IN": 100 }, "AJs": { "ALL-IN": 100 }, "ATs": { "Fold": 100 }, "A9s": { "Fold": 100 }, "A8s": { "Fold": 100 }, "A7s": { "Fold": 100 }, "A6s": { "Fold": 100 }, "A5s": { "Fold": 100 }, "A4s": { "Fold": 100 }, "A3s": { "Fold": 100 }, "A2s": { "Fold": 100 }, "AKo": { "ALL-IN": 100 }, "KK": { "ALL-IN": 100 }, "KQs": { "Fold": 100 }, "KJs": { "Fold": 100 }, "KTs": { "Fold": 100 }, "K9s": { "Fold": 100 }, "K8s": { "Fold": 100 }, "K7s": { "Fold": 100 }, "K6s": { "Fold": 100 }, "Q8s": { "Fold": 100 }, "QTs": { "Fold": 100 }, "Q9s": { "Fold": 100 }, "T9s": { "Fold": 100 }, "J9s": { "Fold": 100 }, "JTs": { "Fold": 100 }, "QJs": { "Fold": 100 }, "QQ": { "ALL-IN": 100 }, "TT": { "ALL-IN": 100 }, "JJ": { "ALL-IN": 100 }, "T8s": { "Fold": 100 }, "98s": { "Fold": 100 }, "87s": { "Fold": 100 }, "A7o": { "Fold": 100 }, "A8o": { "Fold": 100 }, "A9o": { "Fold": 100 }, "ATo": { "Fold": 100 }, "AJo": { "Fold": 100 }, "AQo": { "ALL-IN": 100 }, "KQo": { "Fold": 100 }, "KJo": { "Fold": 100 }, "KTo": { "Fold": 100 }, "QJo": { "Fold": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770818520867 },
+  { "id": "SC-IU0XR8S-1", "name": "OPEN SHOVE - 10BB", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "UTG+1", "opponents": [], "stackBB": 10, "heroBetSize": 2.5, "ranges": { "22": { "Fold": 100 }, "33": { "Fold": 100 }, "44": { "Fold": 100 }, "55": { "Fold": 100 }, "66": { "Fold": 100 }, "77": { "ALL-IN": 100 }, "88": { "ALL-IN": 100 }, "99": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "AKs": { "ALL-IN": 100 }, "AQs": { "ALL-IN": 100 }, "AJs": { "ALL-IN": 100 }, "ATs": { "Fold": 100 }, "AKo": { "ALL-IN": 100 }, "KK": { "ALL-IN": 100 }, "KQs": { "Fold": 100 }, "KJs": { "Fold": 100 }, "KTs": { "Fold": 100 }, "K9s": { "Fold": 100 }, "K8s": { "Fold": 100 }, "K7s": { "Fold": 100 }, "K6s": { "Fold": 100 }, "Q8s": { "Fold": 100 }, "QTs": { "Fold": 100 }, "Q9s": { "Fold": 100 }, "T9s": { "Fold": 100 }, "J9s": { "Fold": 100 }, "JTs": { "Fold": 100 }, "QJs": { "Fold": 100 }, "QQ": { "ALL-IN": 100 }, "TT": { "ALL-IN": 100 }, "JJ": { "ALL-IN": 100 }, "AJo": { "ALL-IN": 100 }, "AQo": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770818543232 },
+  { "id": "SC-VUCZQ6A-2", "name": "OPEN SHOVE - 10BB", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "MP", "opponents": [], "stackBB": 10, "heroBetSize": 2.5, "ranges": { "22": { "Fold": 100 }, "33": { "Fold": 100 }, "44": { "Fold": 100 }, "55": { "Fold": 100 }, "66": { "ALL-IN": 100 }, "77": { "ALL-IN": 100 }, "88": { "ALL-IN": 100 }, "99": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "AKs": { "ALL-IN": 100 }, "AQs": { "ALL-IN": 100 }, "AJs": { "ALL-IN": 100 }, "ATs": { "ALL-IN": 100 }, "AKo": { "ALL-IN": 100 }, "KK": { "ALL-IN": 100 }, "QQ": { "ALL-IN": 100 }, "TT": { "ALL-IN": 100 }, "JJ": { "ALL-IN": 100 }, "AJo": { "ALL-IN": 100 }, "AQo": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770818552465 },
+  { "id": "SC-3LIE46K-3", "name": "OPEN SHOVE - 10BB", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "LJ", "opponents": [], "stackBB": 10, "heroBetSize": 2.5, "ranges": { "22": { "Fold": 100 }, "33": { "Fold": 100 }, "44": { "Fold": 100 }, "55": { "ALL-IN": 100 }, "66": { "ALL-IN": 100 }, "77": { "ALL-IN": 100 }, "88": { "ALL-IN": 100 }, "99": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "AKs": { "ALL-IN": 100 }, "AQs": { "ALL-IN": 100 }, "AJs": { "ALL-IN": 100 }, "ATs": { "ALL-IN": 100 }, "A9s": { "ALL-IN": 100 }, "AKo": { "ALL-IN": 100 }, "KK": { "ALL-IN": 100 }, "KQs": { "ALL-IN": 100 }, "QQ": { "ALL-IN": 100 }, "TT": { "ALL-IN": 100 }, "JJ": { "ALL-IN": 100 }, "ATo": { "ALL-IN": 100 }, "AJo": { "ALL-IN": 100 }, "AQo": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770818564278 },
+  { "id": "SC-RM0FM98-4", "name": "OPEN SHOVE - 10BB", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "HJ", "opponents": [], "stackBB": 10, "heroBetSize": 2.5, "ranges": { "22": { "Fold": 100 }, "33": { "Fold": 100 }, "44": { "ALL-IN": 100 }, "55": { "ALL-IN": 100 }, "66": { "ALL-IN": 100 }, "77": { "ALL-IN": 100 }, "88": { "ALL-IN": 100 }, "99": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "AKs": { "ALL-IN": 100 }, "AQs": { "ALL-IN": 100 }, "AJs": { "ALL-IN": 100 }, "ATs": { "ALL-IN": 100 }, "A9s": { "ALL-IN": 100 }, "A8s": { "ALL-IN": 100 }, "AKo": { "ALL-IN": 100 }, "KK": { "ALL-IN": 100 }, "KQs": { "ALL-IN": 100 }, "QQ": { "ALL-IN": 100 }, "TT": { "ALL-IN": 100 }, "JJ": { "ALL-IN": 100 }, "A9o": { "ALL-IN": 100 }, "ATo": { "ALL-IN": 100 }, "AJo": { "ALL-IN": 100 }, "AQo": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770818528584 },
+  { "id": "SC-EPTFU3G-5", "name": "OPEN SHOVE - 10BB", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "CO", "opponents": [], "stackBB": 10, "heroBetSize": 2.5, "ranges": { "22": { "Fold": 100 }, "33": { "ALL-IN": 100 }, "44": { "ALL-IN": 100 }, "55": { "ALL-IN": 100 }, "66": { "ALL-IN": 100 }, "77": { "ALL-IN": 100 }, "88": { "ALL-IN": 100 }, "99": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "AKs": { "ALL-IN": 100 }, "AQs": { "ALL-IN": 100 }, "AJs": { "ALL-IN": 100 }, "ATs": { "ALL-IN": 100 }, "A9s": { "ALL-IN": 100 }, "A8s": { "ALL-IN": 100 }, "A7s": { "ALL-IN": 100 }, "A6s": { "ALL-IN": 100 }, "A5s": { "ALL-IN": 100 }, "A4s": { "ALL-IN": 100 }, "AKo": { "ALL-IN": 100 }, "KK": { "ALL-IN": 100 }, "KQs": { "ALL-IN": 100 }, "KJs": { "ALL-IN": 100 }, "KTs": { "ALL-IN": 100 }, "QQ": { "ALL-IN": 100 }, "TT": { "ALL-IN": 100 }, "JJ": { "ALL-IN": 100 }, "A8o": { "ALL-IN": 100 }, "A9o": { "ALL-IN": 100 }, "ATo": { "ALL-IN": 100 }, "AJo": { "ALL-IN": 100 }, "AQo": { "ALL-IN": 100 }, "KQo": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770818508798 },
+  { "id": "SC-S1HOPJX-6", "name": "OPEN SHOVE - 10BB", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "BTN", "opponents": [], "stackBB": 10, "heroBetSize": 2.5, "ranges": { "22": { "ALL-IN": 100 }, "33": { "ALL-IN": 100 }, "44": { "ALL-IN": 100 }, "55": { "ALL-IN": 100 }, "66": { "ALL-IN": 100 }, "77": { "ALL-IN": 100 }, "88": { "ALL-IN": 100 }, "99": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "AKs": { "ALL-IN": 100 }, "AQs": { "ALL-IN": 100 }, "AJs": { "ALL-IN": 100 }, "ATs": { "ALL-IN": 100 }, "A9s": { "ALL-IN": 100 }, "A8s": { "ALL-IN": 100 }, "A7s": { "ALL-IN": 100 }, "A6s": { "ALL-IN": 100 }, "A5s": { "ALL-IN": 100 }, "A4s": { "ALL-IN": 100 }, "A3s": { "ALL-IN": 100 }, "A2s": { "ALL-IN": 100 }, "AKo": { "ALL-IN": 100 }, "KK": { "ALL-IN": 100 }, "KQs": { "ALL-IN": 100 }, "KJs": { "ALL-IN": 100 }, "KTs": { "ALL-IN": 100 }, "K9s": { "ALL-IN": 100 }, "QTs": { "ALL-IN": 100 }, "QJs": { "ALL-IN": 100 }, "QQ": { "ALL-IN": 100 }, "TT": { "ALL-IN": 100 }, "JJ": { "ALL-IN": 100 }, "A7o": { "ALL-IN": 100 }, "A8o": { "ALL-IN": 100 }, "A9o": { "ALL-IN": 100 }, "ATo": { "ALL-IN": 100 }, "AJo": { "ALL-IN": 100 }, "AQo": { "ALL-IN": 100 }, "KQo": { "ALL-IN": 100 }, "KJo": { "ALL-IN": 100 }, "KTo": { "ALL-IN": 100 }, "A6o": { "ALL-IN": 100 }, "A5o": { "ALL-IN": 100 }, "A4o": { "ALL-IN": 100 }, "A3o": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770818499335 },
+  { "id": "SC-48JJULI-7", "name": "OPEN SHOVE - 10BB", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "SB", "opponents": [], "stackBB": 10, "heroBetSize": 2.5, "ranges": { "22": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "A2s": { "ALL-IN": 100 }, "K9s": { "ALL-IN": 100 }, "K3s": { "ALL-IN": 100 }, "A2o": { "ALL-IN": 100 }, "K2o": { "ALL-IN": 100 }, "QTo": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770818482846 },
+  { "id": "SC-MQ8LZY7-0", "name": "OPEN SHOVE - 4bb", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "UTG", "opponents": [], "stackBB": 4, "heroBetSize": 2.5, "ranges": { "44": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "AKs": { "ALL-IN": 100 }, "A9o": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770819207030 },
+  { "id": "SC-07HPW1R-1", "name": "OPEN SHOVE - 4bb", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "UTG+1", "opponents": [], "stackBB": 4, "heroBetSize": 2.5, "ranges": { "44": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "A8o": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770819197274 },
+  { "id": "SC-8TLG7J2-2", "name": "OPEN SHOVE - 4bb", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "MP", "opponents": [], "stackBB": 4, "heroBetSize": 2.5, "ranges": { "33": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "A7o": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770819236289 },
+  { "id": "SC-CLMXXZM-3", "name": "OPEN SHOVE - 4bb", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "LJ", "opponents": [], "stackBB": 4, "heroBetSize": 2.5, "ranges": { "33": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "A6o": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770819225625 },
+  { "id": "SC-X1QC96R-4", "name": "OPEN SHOVE - 4bb", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "HJ", "opponents": [], "stackBB": 4, "heroBetSize": 2.5, "ranges": { "33": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "K9o": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770819175887 },
+  { "id": "SC-425HD69-5", "name": "OPEN SHOVE - 4bb", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "CO", "opponents": [], "stackBB": 4, "heroBetSize": 2.5, "ranges": { "22": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "K8o": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770819165640 },
+  { "id": "SC-57JS7MR-6", "name": "OPEN SHOVE - 4bb", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "BTN", "opponents": [], "stackBB": 4, "heroBetSize": 2.5, "ranges": { "22": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "K3s": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770819156411 },
+  { "id": "SC-DIXDVOL-7", "name": "OPEN SHOVE - 4bb", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "SB", "opponents": [], "stackBB": 4, "heroBetSize": 2.5, "ranges": { "22": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "A2o": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770819143864 },
+  { "id": "SC-N65OU4O-0", "name": "OPEN SHOVE - 3bb", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "UTG", "opponents": [], "stackBB": 3, "heroBetSize": 2.5, "ranges": { "44": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "A8o": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770819534986 },
+  { "id": "SC-7KXQIBS-1", "name": "OPEN SHOVE - 3bb", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "UTG+1", "opponents": [], "stackBB": 3, "heroBetSize": 2.5, "ranges": { "33": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "A8o": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770819546187 },
+  { "id": "SC-5U1JO7Q-2", "name": "OPEN SHOVE - 3bb", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "MP", "opponents": [], "stackBB": 3, "heroBetSize": 2.5, "ranges": { "44": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "A5o": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770819556441 },
+  { "id": "SC-7XEU5RF-3", "name": "OPEN SHOVE - 3bb", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "LJ", "opponents": [], "stackBB": 3, "heroBetSize": 2.5, "ranges": { "33": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "A7o": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770819567320 },
+  { "id": "SC-B4E4FQ2-4", "name": "OPEN SHOVE - 3bb", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "HJ", "opponents": [], "stackBB": 3, "heroBetSize": 2.5, "ranges": { "22": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "A6o": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770819522709 },
+  { "id": "SC-V4L88LM-5", "name": "OPEN SHOVE - 3bb", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "CO", "opponents": [], "stackBB": 3, "heroBetSize": 2.5, "ranges": { "22": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "A6o": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770819512369 },
+  { "id": "SC-GBPM5B7-6", "name": "OPEN SHOVE - 3bb", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "BTN", "opponents": [], "stackBB": 3, "heroBetSize": 2.5, "ranges": { "22": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "K3o": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770819499504 },
+  { "id": "SC-R6WE17I-7", "name": "OPEN SHOVE - 3bb", "description": "", "videoLink": "", "modality": "MTT", "street": "PREFLOP", "preflopAction": "open shove", "playerCount": 9, "heroPos": "SB", "opponents": [], "stackBB": 3, "heroBetSize": 2.5, "ranges": { "22": { "ALL-IN": 100 }, "AA": { "ALL-IN": 100 }, "A2o": { "ALL-IN": 100 } }, "customActions": [ "Fold", "ALL-IN" ], "updatedAt": 1770819484370 }
 ];
-
-const SupportButton = () => (
-  <div className="fixed bottom-8 right-8 z-[999] group">
-    <div className="absolute bottom-full right-0 mb-4 opacity-0 group-hover:opacity-100 transition-all pointer-events-none translate-y-2 group-hover:translate-y-0">
-      <div className="bg-[#1a1a1a] text-white text-[10px] font-black uppercase tracking-widest py-2 px-4 rounded-xl border border-white/10 shadow-2xl whitespace-nowrap">
-        Suporte WhatsApp
-      </div>
-      <div className="w-2 h-2 bg-[#1a1a1a] border-r border-b border-white/10 rotate-45 absolute left-1/2 -translate-x-1/2 -bottom-1"></div>
-    </div>
-    <a
-      href="https://wa.me/5521990970439?text=Oi%2C%20vim%20da%20plataforma%20Pent%C3%A1gono%20e%20preciso%20de%20ajuda."
-      target="_blank"
-      rel="noopener noreferrer"
-      className="w-12 h-12 bg-[#10b981] hover:bg-[#059669] text-white rounded-full shadow-[0_10px_30px_rgba(16,185,129,0.4)] transition-all hover:scale-110 active:scale-95 flex items-center justify-center border border-white/20"
-      aria-label="Suporte via WhatsApp"
-    >
-      <span className="text-2xl font-black leading-none mt-[-2px]">?</span>
-    </a>
-  </div>
-);
-
-const MobileRestrictionOverlay = () => (
-  <div className="fixed inset-0 z-[9999] bg-[#050505] flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
-    <div className="relative mb-12">
-      <div className="absolute inset-0 bg-emerald-500/10 blur-[60px] rounded-full scale-150"></div>
-      <svg viewBox="0 0 100 100" className="w-32 h-32 text-emerald-500 drop-shadow-[0_0_30px_rgba(16,185,129,0.4)] relative z-10">
-        <path d="M50 8 L92 38 L76 88 L24 88 L8 38 Z" fill="none" stroke="currentColor" strokeWidth="6" />
-        <g transform="translate(50, 52)">
-          <circle cx="0" cy="0" r="16" fill="none" stroke="#f59e0b" strokeWidth="4" strokeDasharray="5 3" />
-          <circle cx="0" cy="0" r="10" fill="#f59e0b" />
-        </g>
-      </svg>
-    </div>
-    
-    <h1 className="text-3xl font-black text-white uppercase tracking-tighter mb-4 leading-tight drop-shadow-2xl">
-      ACESSO RESTRITO
-    </h1>
-    
-    <div className="max-w-xs space-y-6">
-      <p className="text-gray-400 text-sm font-medium leading-relaxed">
-        O sistema <span className="text-emerald-500 font-black">PENTÁGONO Poker Trade</span> foi desenvolvido para alta performance e exige uma tela maior.
-      </p>
-      
-      <div className="bg-white/5 border border-white/10 rounded-2xl p-6 shadow-inner">
-        <p className="text-white text-xs font-black uppercase tracking-widest leading-relaxed">
-          Por favor, acesse através de um <br/>
-          <span className="text-sky-400">Computador ou Notebook</span> <br/>
-          para uma melhor experiência.
-        </p>
-      </div>
-      
-      <div className="pt-4">
-        <p className="text-[9px] text-gray-600 font-black uppercase tracking-[0.3em]">Exclusivo para Desktop</p>
-      </div>
-    </div>
-  </div>
-);
 
 const App: React.FC = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem(CURRENT_USER_KEY));
   const [authView, setAuthView] = useState<'login' | 'register'>('login');
-  const [currentUser, setCurrentUser] = useState<string | null>(null);
-  const [multiLoginError, setMultiLoginError] = useState(false);
-
+  const [currentUser, setCurrentUser] = useState<string | null>(() => localStorage.getItem(CURRENT_USER_KEY));
   const [currentView, setCurrentView] = useState<'selection' | 'setup' | 'trainer'>('selection');
   
-  useEffect(() => {
-    const savedMembers = JSON.parse(localStorage.getItem(MEMBERS_STORAGE_KEY) || '[]');
-    const memberMap = new Map<string, any>();
-    SYSTEM_DEFAULT_MEMBERS.forEach(m => memberMap.set(m.email.toLowerCase(), m));
-    savedMembers.forEach((m: any) => memberMap.set(m.email.toLowerCase(), m));
-    localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(Array.from(memberMap.values())));
-  }, []);
-
   const [scenarios, setScenarios] = useState<Scenario[]>(() => {
     const savedJson = localStorage.getItem(SCENARIOS_STORAGE_KEY);
     let savedScenarios: Scenario[] = [];
@@ -1698,17 +157,13 @@ const App: React.FC = () => {
   const [activeScenario, setActiveScenario] = useState<Scenario | null>(null);
   const [trainingGoal, setTrainingGoal] = useState<TrainingGoal | null>(null);
   const [sessionElapsedSeconds, setSessionElapsedSeconds] = useState(0);
-
   const [players, setPlayers] = useState<Player[]>([]);
   const [board, setBoard] = useState<string[]>([]);
-  const [isMobile, setIsMobile] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarPinned, setSidebarPinned] = useState(() => localStorage.getItem('gto_sidebar_pinned') === 'true');
   const [isFocusMode, setIsFocusMode] = useState(false);
-  
   const [feedback, setFeedback] = useState<'idle' | 'correct' | 'incorrect' | 'timeout'>('idle');
   const [currentPot, setCurrentPot] = useState(0);
-  
   const [handHistory, setHandHistory] = useState<HandRecord[]>([]);
   const [showStopModal, setShowStopModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -1718,13 +173,18 @@ const App: React.FC = () => {
   const [showScenarioCreatorModal, setShowScenarioCreatorModal] = useState(false);
   const [creatorDefaultStep, setCreatorDefaultStep] = useState<number | 'manage'>(1);
   const [showAdminMemberModal, setShowAdminMemberModal] = useState(false);
-
   const [timeBankSetting, setTimeBankSetting] = useState<TimeBankOption>('OFF');
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const timerRef = useRef<number | null>(null);
   const sessionTimerRef = useRef<number | null>(null);
 
   const isAdmin = currentUser === 'gabrielfmacedo@ymail.com';
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem(CURRENT_USER_KEY, currentUser);
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     if (currentView === 'trainer' && !showReportModal && !showStopModal) {
@@ -1735,141 +195,38 @@ const App: React.FC = () => {
     return () => { if (sessionTimerRef.current) clearInterval(sessionTimerRef.current); };
   }, [currentView, showReportModal, showStopModal]);
 
-  useEffect(() => {
-    if (!trainingGoal || currentView !== 'trainer' || showReportModal) return;
-    if (trainingGoal.type === 'hands' && handHistory.length >= trainingGoal.value) setShowReportModal(true);
-    else if (trainingGoal.type === 'time' && sessionElapsedSeconds >= trainingGoal.value * 60) setShowReportModal(true);
-  }, [handHistory.length, sessionElapsedSeconds, trainingGoal, currentView, showReportModal]);
-
-  useEffect(() => {
-    if (!isAuthenticated || !currentUser) return;
-    const checkSession = () => {
-      const activeSessions = JSON.parse(localStorage.getItem('gto_active_sessions') || '{}');
-      const currentSessionId = sessionStorage.getItem('gto_current_session_id');
-      const latestSessionId = activeSessions[currentUser.toLowerCase()];
-      if (latestSessionId && latestSessionId !== currentSessionId) { handleLogout(); setMultiLoginError(true); }
-    };
-    const interval = setInterval(checkSession, 3000);
-    window.addEventListener('focus', checkSession);
-    window.addEventListener('storage', checkSession);
-    return () => { clearInterval(interval); window.removeEventListener('focus', checkSession); window.removeEventListener('storage', checkSession); };
-  }, [isAuthenticated, currentUser]);
-
-  useEffect(() => {
-    const session = localStorage.getItem('gto_session');
-    if (session) {
-      const { email, expiry, sessionId } = JSON.parse(session);
-      if (Date.now() < expiry) {
-        setCurrentUser(email);
-        sessionStorage.setItem('gto_current_session_id', sessionId);
-        setIsAuthenticated(true);
-      } else localStorage.removeItem('gto_session');
-    }
-  }, []);
-
-  useEffect(() => {
-    const handleResize = () => {
-      const width = window.innerWidth;
-      const mobile = width < 1024;
-      setIsMobile(mobile);
-      if (mobile) {
-        setSidebarOpen(false);
-        setIsFocusMode(false);
-      } else if (sidebarPinned && !isFocusMode) {
-        setSidebarOpen(true);
-      }
-    };
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [sidebarPinned, isFocusMode]);
-
-  const handleToggleSidebarPin = () => {
-    const newVal = !sidebarPinned;
-    setSidebarPinned(newVal);
-    localStorage.setItem('gto_sidebar_pinned', String(newVal));
-    if (newVal) setSidebarOpen(true);
-  };
-
   const resetToNewHand = useCallback(() => {
     if (!activeScenario) return;
-
     const activeHands = getActiveHandsFromRange(activeScenario.ranges);
-    if (activeHands.length === 0) {
-      alert("Erro: Este cenário não possui nenhuma mão configurada na matriz estratégica!");
-      setCurrentView('selection');
-      return;
-    }
-
+    if (activeHands.length === 0) return;
     const randomHandKey = activeHands[Math.floor(Math.random() * activeHands.length)];
     const heroCards = generateCardsFromKey(randomHandKey);
-
     const count = activeScenario.playerCount;
     const tablePositions = getTablePositions(count);
     const preflopOrder = getPreflopOrder(count);
-
     setBoard(activeScenario.street !== 'PREFLOP' ? ['Ah', 'Kh', 'Qh'] : []);
-
     let totalPot = 0;
     const heroOrderIndex = preflopOrder.indexOf(activeScenario.heroPos);
-
-    const isIsoAction = activeScenario.preflopAction.toLowerCase() === 'iso';
-    const opponentBetVal = activeScenario.opponentBetSize || 0;
-    
     const scenarioPlayers: Player[] = tablePositions.map((posName, i) => {
       const isHero = posName === activeScenario.heroPos;
       const isOpponent = activeScenario.opponents.includes(posName);
       const orderIndex = preflopOrder.indexOf(posName);
-      
       let status = PlayerStatus.IDLE;
       let betAmount = 0;
       let hasCards = false;
-
-      if (isIsoAction && isOpponent) {
-        betAmount = BIG_BLIND_VALUE;
-        status = PlayerStatus.IDLE;
-        hasCards = true;
-      } 
-      else if (!isIsoAction && isOpponent && activeScenario.opponents[0] === posName && opponentBetVal > 0) {
-        betAmount = opponentBetVal * BIG_BLIND_VALUE;
-        status = PlayerStatus.IDLE;
-        hasCards = true;
-      }
-      
-      if (orderIndex < heroOrderIndex && orderIndex !== -1) {
-        if (!isOpponent) status = PlayerStatus.FOLDED;
-      } else if (isHero) {
-        status = PlayerStatus.ACTING;
-        hasCards = true;
-      } else if (orderIndex > heroOrderIndex) {
-        hasCards = true;
-      }
-
-      if (posName === 'SB') { betAmount = Math.max(betAmount, BIG_BLIND_VALUE / 2); }
-      else if (posName === 'BB') { betAmount = Math.max(betAmount, BIG_BLIND_VALUE); }
-
+      if (isOpponent) { betAmount = BIG_BLIND_VALUE * (activeScenario.opponentBetSize || 1); hasCards = true; }
+      if (orderIndex < heroOrderIndex && orderIndex !== -1 && !isOpponent) status = PlayerStatus.FOLDED;
+      else if (isHero) { status = PlayerStatus.ACTING; hasCards = true; }
+      else if (orderIndex > heroOrderIndex) hasCards = true;
+      if (posName === 'SB') betAmount = Math.max(betAmount, BIG_BLIND_VALUE / 2);
+      else if (posName === 'BB') betAmount = Math.max(betAmount, BIG_BLIND_VALUE);
       totalPot += betAmount;
-
-      const isDealer = count === 2 ? posName === 'SB' : posName === 'BTN';
-      const playerStackBB = activeScenario.individualStacks?.[posName] ?? activeScenario.stackBB;
-
-      return {
-        id: i + 1,
-        name: `PLAYER_${i + 1}`,
-        chips: (Number(playerStackBB) * Number(BIG_BLIND_VALUE)) - Number(betAmount),
-        positionName: posName,
-        status: status,
-        betAmount: betAmount,
-        cards: isHero ? heroCards : (hasCards ? ['BACK', 'BACK'] : undefined),
-        isDealer: isDealer
-      };
+      return { id: i + 1, name: `P${i + 1}`, chips: (activeScenario.stackBB * BIG_BLIND_VALUE) - betAmount, positionName: posName, status, betAmount, cards: isHero ? heroCards : (hasCards ? ['BACK', 'BACK'] : undefined), isDealer: count === 2 ? posName === 'SB' : posName === 'BTN' };
     });
-
     setPlayers(scenarioPlayers);
     setCurrentPot(totalPot);
     setFeedback('idle');
     if (timeBankSetting !== 'OFF') setTimeRemaining(timeBankSetting as number);
-    else setTimeRemaining(0);
   }, [timeBankSetting, activeScenario]);
 
   useEffect(() => {
@@ -1878,445 +235,149 @@ const App: React.FC = () => {
 
   const handleActionClick = useCallback((label: string, isTimeout: boolean = false) => {
     if (feedback !== 'idle' && !isTimeout) return;
-    if (timerRef.current) { window.clearInterval(timerRef.current); timerRef.current = null; }
-
-    const heroIndex = players.findIndex(p => p.positionName === activeScenario?.heroPos);
-    const hero = players[heroIndex];
+    const hero = players.find(p => p.positionName === activeScenario?.heroPos);
     if (!hero || !activeScenario) return;
 
-    const [c1, c2] = hero.cards!;
-    const r1 = c1[0]; const s1 = c1[1]; const r2 = c2[0]; const s2 = c2[1];
-    const rank1Idx = RANKS.indexOf(r1); const rank2Idx = RANKS.indexOf(r2);
-    
-    let comboKey = r1 + s1 + r2 + s2;
-    let handKey = '';
-    if (rank1Idx === rank2Idx) handKey = r1 + r2;
-    else if (rank1Idx > rank2Idx) handKey = r1 + r2 + (s1 === s2 ? 's' : 'o');
-    else handKey = r2 + r1 + (s1 === s2 ? 's' : 'o');
-
-    const ranges = activeScenario.ranges;
+    let addedBet = 0;
     const labelLower = label.toLowerCase();
-    const actionMap = ranges[comboKey] || ranges[handKey];
     
-    let isCorrect = false;
-    let correctAction = 'Fold';
-
-    if (actionMap) {
-      const baseAction = labelLower.includes('raise') || labelLower.includes('iso') ? 'Raise' : labelLower.includes('call') || labelLower.includes('check') ? 'Call' : label;
-      const freq = actionMap[label] || actionMap[baseAction] || 0;
-      isCorrect = (freq as number) > 0;
-      
-      const entries = Object.entries(actionMap);
-      const sortedEntries = entries.sort((a, b) => (b[1] as number) - (a[1] as number));
-      const bestAction = sortedEntries[0];
-      if (bestAction) correctAction = bestAction[0];
-    } else {
-      isCorrect = labelLower.includes('fold');
+    if (labelLower.includes('all-in') || labelLower.includes('shove')) {
+      addedBet = hero.chips;
+    } else if (labelLower.includes('call') || labelLower.includes('pagar')) {
+      const maxBetOnTable = Math.max(...players.map(p => p.betAmount || 0));
+      addedBet = Math.max(0, maxBetOnTable - (hero.betAmount || 0));
+    } else if (!labelLower.includes('fold')) {
+      const match = label.match(/[\d.]+/);
+      if (match) {
+        const targetBet = parseFloat(match[0]) * BIG_BLIND_VALUE;
+        addedBet = Math.max(0, targetBet - (hero.betAmount || 0));
+      }
     }
 
-    if (!isTimeout) {
-      setPlayers(prev => {
-        const next = [...prev];
-        const playerToUpdate = next[heroIndex];
-        if (!playerToUpdate || !activeScenario) return prev;
-        const p = { ...playerToUpdate };
-        
-        const isBettingAction = labelLower.includes('raise') || 
-                                labelLower.includes('all-in') || 
-                                labelLower.includes('shove') || 
-                                labelLower.includes('rfi') || 
-                                labelLower.includes('bet') ||
-                                labelLower.includes('call') ||
-                                labelLower.includes('iso') ||
-                                labelLower.includes('check') ||
-                                labelLower.includes('pagar');
+    const finalAddedBet = Math.min(addedBet, hero.chips);
 
-        if (isBettingAction && !labelLower.includes('check')) {
-          let betAmountBB: number = 0;
-          
-          if (labelLower.includes('call') || labelLower.includes('pagar')) {
-            betAmountBB = Number(activeScenario.opponentBetSize || 1);
-          } else if (labelLower.includes('all-in') || labelLower.includes('shove')) {
-            betAmountBB = (Number(p.chips) + Number(p.betAmount)) / BIG_BLIND_VALUE;
-          } else {
-            const match = label.match(/(\d+\.?\d*)/);
-            betAmountBB = match ? parseFloat(match[0]) : Number(activeScenario.heroBetSize);
-          }
-          
-          const currentChipsVal = Number(p.chips || 0);
-          const currentBetVal = Number(p.betAmount || 0);
-          const bbVal = Number(BIG_BLIND_VALUE);
-          
-          let totalBetRaw = betAmountBB * bbVal;
-          const additionalBetVal = totalBetRaw - currentBetVal;
-          
-          p.chips = currentChipsVal - additionalBetVal;
-          p.betAmount = totalBetRaw;
-          setCurrentPot(curr => Number(curr) + additionalBetVal);
-        }
-        
-        p.status = labelLower.includes('fold') ? PlayerStatus.FOLDED : PlayerStatus.IDLE;
-        next[heroIndex] = p;
-        return next;
-      });
+    setPlayers(prev => prev.map(p => {
+      if (p.positionName === activeScenario?.heroPos) {
+        return {
+          ...p,
+          chips: p.chips - finalAddedBet,
+          betAmount: (p.betAmount || 0) + finalAddedBet,
+          status: labelLower.includes('fold') ? PlayerStatus.FOLDED : p.status
+        };
+      }
+      return p;
+    }));
+
+    if (finalAddedBet > 0) {
+      setCurrentPot(prev => prev + finalAddedBet);
     }
 
-    const status = isCorrect ? 'correct' : 'incorrect';
-    setFeedback(isTimeout ? 'timeout' : status);
+    const [c1, c2] = hero.cards!;
+    const rank1Idx = RANKS.indexOf(c1[0]); const rank2Idx = RANKS.indexOf(c2[0]);
+    let handKey = rank1Idx === rank2Idx ? c1[0] + c2[0] : (rank1Idx > rank2Idx ? c1[0] + c2[0] + (c1[1] === c2[1] ? 's' : 'o') : c2[0] + c1[0] + (c1[1] === c2[1] ? 's' : 'o'));
+    const actionMap = activeScenario.ranges[handKey];
+    let isCorrect = actionMap ? (actionMap[label] || 0) > 0 : label.toLowerCase().includes('fold');
 
-    const newHand: HandRecord = {
-      id: Date.now(),
-      cards: hero.cards?.join(' ') || '??',
-      action: isTimeout ? 'TEMPO ESGOTADO' : label,
-      correctAction: correctAction,
-      status: status,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      isTimeout: isTimeout
-    };
-    setHandHistory(prev => [...prev, newHand]);
+    setFeedback(isTimeout ? 'timeout' : (isCorrect ? 'correct' : 'incorrect'));
+    setHandHistory(prev => [...prev, { id: Date.now(), cards: hero.cards?.join(' ') || '??', action: isTimeout ? 'TEMPO' : label, correctAction: actionMap ? Object.keys(actionMap)[0] : 'Fold', status: isCorrect ? 'correct' : 'incorrect', timestamp: new Date().toLocaleTimeString(), isTimeout }]);
+    
     setTimeout(() => resetToNewHand(), 1500);
   }, [players, feedback, resetToNewHand, activeScenario]);
 
-  useEffect(() => {
-    if (timeBankSetting === 'OFF' || feedback !== 'idle' || timeRemaining <= 0) {
-      if (timerRef.current) { window.clearInterval(timerRef.current); timerRef.current = null; }
-      return;
-    }
-    timerRef.current = window.setInterval(() => {
-      setTimeRemaining(prev => {
-        const next = prev - 0.1;
-        if (next <= 0) {
-          if (timerRef.current) window.clearInterval(timerRef.current);
-          handleActionClick('Fold', true);
-          return 0;
-        }
-        return next;
-      });
-    }, 100);
-    return () => { if (timerRef.current) window.clearInterval(timerRef.current); };
-  }, [timeBankSetting, feedback, timeRemaining, handleActionClick]);
-
-  const handleLogin = (email: string, remember: boolean) => {
-    const sessionId = sessionStorage.getItem('gto_current_session_id') || Date.now().toString();
-    const baseExpiry = 24 * 60 * 60 * 1000;
-    const expiryTime = remember ? (7 * 24 * 60 * 60 * 1000) : baseExpiry;
-    
-    localStorage.setItem('gto_session', JSON.stringify({ 
-      email, 
-      sessionId, 
-      expiry: Date.now() + expiryTime 
-    }));
-    
-    setMultiLoginError(false); 
-    setCurrentUser(email); 
-    setIsAuthenticated(true);
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('gto_session');
-    sessionStorage.removeItem('gto_current_session_id');
-    setIsAuthenticated(false); setCurrentUser(null); setCurrentView('selection'); setAuthView('login');
-  };
-
-  const onSelectScenario = (s: Scenario) => { setActiveScenario(s); setCurrentView('setup'); setHandHistory([]); setSessionElapsedSeconds(0); };
-  const handleStartTraining = (goal: TrainingGoal) => { setTrainingGoal(goal); setCurrentView('trainer'); setHandHistory([]); setSessionElapsedSeconds(0); };
-  
-  const handleCreateNew = () => {
-    setCreatorDefaultStep(1);
-    setShowScenarioCreatorModal(true);
-  };
-
-  const handleEditScenarios = () => {
-    setCreatorDefaultStep('manage');
-    setShowScenarioCreatorModal(true);
-  };
-  
-  const handleSaveScenario = (newScenario: Scenario) => {
-    const scenarioToSave = { ...newScenario, updatedAt: Date.now() };
-
-    setScenarios(prev => {
-      let updated;
-      const index = prev.findIndex(s => s.id === scenarioToSave.id);
-      if (index !== -1) { 
-        updated = [...prev]; 
-        updated[index] = scenarioToSave; 
-      } else {
-        updated = [...prev, scenarioToSave];
-      }
-      const customScenarios = updated.filter(s => !SYSTEM_DEFAULT_SCENARIOS.some(def => def.id === s.id));
-      localStorage.setItem(SCENARIOS_STORAGE_KEY, JSON.stringify(customScenarios));
-      return updated;
-    });
-    setShowScenarioCreatorModal(false);
-  };
-
-  const handleDeleteScenario = (id: string) => {
-    if (SYSTEM_DEFAULT_SCENARIOS.some(s => s.id === id)) {
-      alert("Não é possível excluir cenários padrão do sistema.");
-      return;
-    }
-    setScenarios(prev => {
-      const updated = prev.filter(s => s.id !== id);
-      const customScenarios = updated.filter(s => !SYSTEM_DEFAULT_SCENARIOS.some(def => def.id === s.id));
-      localStorage.setItem(SCENARIOS_STORAGE_KEY, JSON.stringify(customScenarios));
-      return updated;
-    });
-  };
-
-  const handleStopTrainingConfirm = () => { setShowStopModal(false); setShowReportModal(true); setIsFocusMode(false); };
-  const onExitToSelection = () => { setShowReportModal(false); setCurrentView('selection'); setTrainingGoal(null); setIsFocusMode(false); };
-
-  const handleRestartConfirm = () => {
-    setHandHistory([]);
-    setSessionElapsedSeconds(0);
-    setShowRestartModal(false);
-    resetToNewHand();
-  };
-
-  const getDesktopPlayerStyle = (index: number, totalSlots: number) => {
-    const startAngle = 270; const angleStep = 360 / totalSlots; const angleInDegrees = startAngle - (index * angleStep);
-    let rx = 44; let ry = 38; const angleInRadians = (angleInDegrees * Math.PI) / 180;
-    let x = 50 + rx * Math.cos(angleInRadians); let y = 50 - ry * Math.sin(angleInRadians);
-    if (index === 0) y = 82;
-    if (totalSlots === 9) {
-      if (index === 1 || index === 8) y = 83;
-      if (index === 3) { y -= 6; x -= 1; } if (index === 4 || index === 5) y -= 2; if (index === 6) { y -= 6; x += 1; }
-    } else if (totalSlots === 6) {
-       rx = 42; ry = 36; x = 50 + rx * Math.cos(angleInRadians); y = 50 - ry * Math.sin(angleInRadians);
-       if (index === 0) y = 82; if (index === 1) { x -= 2; y += 1; } if (index === 2) { x -= 2; y -= 1; } if (index === 3) y -= 2; if (index === 4) { x += 2; y -= 1; } if (index === 5) { x += 2; y += 1; }
-    } else if (totalSlots === 4) {
-       rx = 42; ry = 36; x = 50 + rx * Math.cos(angleInRadians); y = 50 - ry * Math.sin(angleInRadians);
-       if (index === 0) y = 82; if (index === 2) y = 10;
-    } else if (totalSlots === 2) { if (index === 0) { x = 50; y = 82; } if (index === 1) { x = 50; y = 10; } }
-    return { top: `${y}%`, left: `${x}%`, transform: 'translate(-50%, -50%)' };
-  };
-
-  const getMobilePlayerStyle = (index: number, totalSlots: number) => {
-    // Para 9-max em mobile, usamos coordenadas fixas para garantir o alinhamento com a mesa alongada
-    if (totalSlots === 9) {
-      const positions = [
-        { x: 50, y: 92 }, // Index 0: Hero (Bottom Center) - Mais para baixo
-        { x: 12, y: 78 }, // Index 1: SB (Bottom Left) - Mais para baixo
-        { x: 12, y: 56 }, // Index 2: BB (Mid Left) - Movimentado levemente para baixo
-        { x: 15, y: 34 }, // Index 3: UTG (Top Left) - Movimentado levemente para baixo (Sugerido 34%)
-        { x: 35, y: 12 }, // Index 4: UTG+1 (Top-Left Center) - Mantém no topo
-        { x: 65, y: 12 }, // Index 5: MP (Top-Right Center) - Mantém no topo
-        { x: 85, y: 34 }, // Index 6: LJ (Top Right) - Movimentado levemente para baixo (Sugerido 34%)
-        { x: 88, y: 56 }, // Index 7: HJ (Mid Right) - Movimentado levemente para baixo
-        { x: 88, y: 78 }, // Index 8: CO (Bottom Right) - Mais para baixo
-      ];
-      return { top: `${positions[index].y}%`, left: `${positions[index].x}%`, transform: 'translate(-50%, -50%)' };
-    }
-    
-    // Fallback elipse para outros layouts (2, 4, 6 max)
-    const startAngle = 270; const angleStep = 360 / totalSlots; const angleInDegrees = startAngle - (index * angleStep);
-    let rx = 37; let ry = 43; const angleInRadians = (angleInDegrees * Math.PI) / 180;
-    let x = 50 + rx * Math.cos(angleInRadians); let y = 50 - ry * Math.sin(angleInRadians);
-    if (index === 0) y = 92; 
-    return { top: `${y}%`, left: `${x}%`, transform: 'translate(-50%, -50%)' };
-  };
-
-  const getOrientationClass = (index: number, isMobileMode: boolean, totalSlots: number) => {
-    if (index === 0) return 'bottom';
-    if (totalSlots === 9) {
-        if (isMobileMode) {
-          if (index >= 1 && index <= 3) return 'left'; if (index >= 4 && index <= 5) return 'top'; return 'right';
-        } else {
-          if (index > 0 && index <= 2) return 'left'; if (index >= 3 && index <= 6) return 'top'; return 'right';
-        }
-    } else if (totalSlots === 6) { if (index === 1 || index === 2) return 'left'; if (index === 3) return 'top'; if (index === 4 || index === 5) return 'right'; return 'top'; }
-    else if (totalSlots === 2) return index === 0 ? 'bottom' : 'top';
-    else { if (index === 1) return 'left'; if (index === 2) return 'top'; if (index === 3) return 'right'; return 'bottom'; }
-  };
-
-  const renderActionButtons = () => {
-    const actions = (activeScenario?.customActions && activeScenario.customActions.length > 0) 
-      ? activeScenario.customActions 
-      : ['Fold', 'Raise'];
-    
-    const n = actions.length;
-
-    let row1: string[] = [];
-    let row2: string[] = [];
-    
-    if (n <= 3) {
-      row1 = actions;
-    } else if (n === 4) {
-      row1 = actions.slice(0, 2);
-      row2 = actions.slice(2, 4);
-    } else if (n === 5) {
-      row1 = actions.slice(0, 3);
-      row2 = actions.slice(3, 5);
-    } else {
-      row1 = actions.slice(0, 3);
-      row2 = actions.slice(3, 6);
-    }
-
-    const renderRow = (row: string[]) => (
-      <div className="flex gap-2 w-full justify-center">
-        {row.map((label, idx) => {
-          const originalIdx = actions.indexOf(label);
-          const color = getActionColor(label, originalIdx);
-          const buttonWidth = n === 4 ? 'w-[calc(50%-4px)]' : 'w-[calc(33.33%-6px)]';
-          
-          return (
-            <button 
-              key={`${label}-${idx}`} 
-              onClick={() => handleActionClick(label)} 
-              style={{ backgroundColor: color, borderColor: 'rgba(255,255,255,0.2)' }}
-              className={`${buttonWidth} h-8 md:h-9 px-1 rounded-lg border flex items-center justify-center active:scale-95 focus:outline-none focus:ring-0 focus:ring-offset-0 text-[8px] md:text-[9px] font-black uppercase tracking-wider text-white shadow-2xl hover:brightness-110 truncate`}
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
-    );
-
-    return (
-      <div className={`flex flex-col gap-1.5 w-full ${isMobile ? 'max-w-[320px]' : 'max-w-[420px]'} px-2 items-center`}>
-        {renderRow(row1)}
-        {row2.length > 0 && renderRow(row2)}
-      </div>
-    );
-  };
-
-  const formatTime = (seconds: number) => { const mins = Math.floor(seconds / 60); const secs = seconds % 60; return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`; };
-  const getProgressText = () => {
-    if (!trainingGoal) return `${handHistory.length} mãos`;
-    if (trainingGoal.type === 'hands') return `${handHistory.length} / ${trainingGoal.value} mãos`;
-    if (trainingGoal.type === 'time') return `${formatTime(sessionElapsedSeconds)} / ${formatTime(trainingGoal.value * 60)}`;
-    return `${handHistory.length} mãos`;
-  };
-
-  // Bloqueio para dispositivos móveis
-  if (isMobile) {
-    return <MobileRestrictionOverlay />;
-  }
-
-  if (!isAuthenticated) {
-    if (authView === 'login') {
-      return <LoginScreen onLogin={handleLogin} onGoToRegister={() => setAuthView('register')} />;
-    }
-    return (
-      <>
-        <RegisterScreen onRegister={(e) => handleLogin(e, false)} onGoToLogin={() => setAuthView('login')} />
-        <SupportButton />
-      </>
-    );
-  }
-
-  if (currentView === 'selection') return ( 
-    <div className="w-full h-screen overflow-hidden"> 
-      <SelectionScreen 
-        scenarios={scenarios} 
-        onSelect={onSelectScenario} 
-        onCreateNew={handleCreateNew} 
-        onEditScenarios={handleEditScenarios}
-        onShowAdmin={() => setShowAdminMemberModal(true)}
-        onLogout={handleLogout}
-        isAdmin={isAdmin} 
-      /> 
-      <ScenarioCreatorModal 
-        isOpen={showScenarioCreatorModal} 
-        scenarios={scenarios} 
-        onClose={() => setShowScenarioCreatorModal(false)} 
-        onSave={handleSaveScenario} 
-        onDelete={handleDeleteScenario} 
-        defaultStep={creatorDefaultStep}
-      /> 
-      <AdminMemberModal isOpen={showAdminMemberModal} onClose={() => setShowAdminMemberModal(false)} /> 
-      <SupportButton /> 
-    </div> 
-  );
-
-  if (currentView === 'setup' && activeScenario) return <> <TrainingSetupScreen scenarioName={activeScenario.name} onStart={handleStartTraining} onBack={() => setCurrentView('selection')} /> <SupportButton /> </>;
-
-  const playerCount = activeScenario?.playerCount || 9;
+  const handleLogin = (email: string) => { setCurrentUser(email); setIsAuthenticated(true); };
+  const handleLogout = () => { setIsAuthenticated(false); setCurrentUser(null); localStorage.removeItem(CURRENT_USER_KEY); setCurrentView('selection'); };
 
   return (
-    <div className="w-full h-screen bg-[#050505] flex overflow-hidden font-sans text-white relative">
-      {!isFocusMode && (
-        <Sidebar isOpen={sidebarOpen} isPinned={sidebarPinned} onToggle={() => setSidebarOpen(!sidebarOpen)} onTogglePin={handleToggleSidebarPin} onToggleFocusMode={() => setIsFocusMode(true)} onStopTreino={() => setShowStopModal(true)} onRestartTreino={() => setShowRestartModal(true)} onShowSpotInfo={() => setShowSpotInfoModal(true)} onShowConfig={() => setShowConfigModal(true)} onShowScenarioCreator={handleEditScenarios} onShowAdminMember={() => setShowAdminMemberModal(true)} onBackToSelection={() => setCurrentView('selection')} onLogout={handleLogout} currentUser={currentUser} history={handHistory} ranges={activeScenario?.ranges} customActions={activeScenario?.customActions} trainingGoal={trainingGoal || undefined} sessionElapsedSeconds={sessionElapsedSeconds} />
-      )}
-      {isFocusMode && (
-        <div className="fixed inset-0 z-[200] pointer-events-none flex flex-col justify-between p-10">
-           <div className="flex justify-between items-start w-full pointer-events-auto">
-              <div className="bg-black/80 backdrop-blur-xl border border-white/10 rounded-[24px] px-8 py-4 shadow-2xl flex flex-col items-center">
-                 <span className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-1">Status do Treino</span>
-                 <span className="text-white font-mono font-black text-xl tracking-tight uppercase">{getProgressText()}</span>
-              </div>
-              <div className="flex gap-4">
-                 <button onClick={() => setIsFocusMode(false)} className="px-8 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-[20px] text-[11px] font-black uppercase tracking-widest text-white shadow-2xl focus:outline-none focus:ring-0"> Sair do Modo Foco </button>
-                 <button onClick={() => setShowStopModal(true)} className="px-8 py-4 bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 rounded-[20px] text-[11px] font-black uppercase tracking-widest text-red-400 shadow-2xl focus:outline-none focus:ring-0"> Parar Treino </button>
-              </div>
-           </div>
-        </div>
-      )}
-      
-      <div className={`flex-1 flex flex-col items-center transition-all duration-300 ${!isMobile && sidebarOpen && !isFocusMode ? 'ml-80' : 'ml-0'}`}>
-        <div className="flex-1 w-full relative flex items-center justify-center p-4 overflow-hidden">
-            <div className={`relative w-full ${isMobile ? 'max-w-[420px] aspect-[9/16]' : 'max-w-[800px] aspect-[16/10]'} flex flex-col items-center justify-center select-none transition-all duration-500`}>
-              {/* Mesa: Alongada verticalmente no mobile com margens ajustadas (mt-10 mb-4) */}
-              <div className={`absolute inset-0 ${isMobile ? 'mt-10 mb-4 mx-8 rounded-[110px]' : 'm-16 rounded-[120px]'} border-[8px] border-[#111111] shadow-[0_20px_60px_-15px_rgba(0,0,0,1)] bg-[#080808]`}>
-                <div className="absolute inset-1.5 bg-[radial-gradient(ellipse_at_center,_#064e3b_0%,_#022c22_65%,_#000000_100%)] flex items-center justify-center overflow-hidden rounded-[100px]">
-                  <div className={`absolute left-1/2 -translate-x-1/2 ${isMobile ? (playerCount <= 4 ? 'top-[28%]' : 'top-[36%]') + ' flex-col-reverse gap-12' : 'top-[30%] flex-col gap-4'} z-20 flex items-center`}>
-                      <div className="bg-black/90 px-3.5 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1.5 shadow-2xl backdrop-blur-sm">
-                        <span className="text-emerald-500 font-black text-[8px] tracking-widest uppercase">POT</span>
-                        <span className="text-white font-mono font-black text-[11px] tracking-tight leading-none whitespace-nowrap">{(currentPot / BIG_BLIND_VALUE).toFixed(1)} BB</span>
-                      </div>
-                      {board.length > 0 && (
-                        <div className="flex gap-1.5 animate-in fade-in zoom-in duration-700">
-                          {board.map((card, i) => {
-                            const rank = card[0]; const suit = card[1];
-                            return (
-                              <div key={i} className={`w-10 h-14 bg-white rounded-md shadow-2xl flex flex-col items-center justify-center leading-none ${getSuitColor(suit)} font-bold border border-gray-300 transform transition-transform hover:scale-105`}>
-                                <span className="text-[16px] font-black">{rank === 'T' ? '10' : rank}</span>
-                                <span className="text-[20px]">{getSuitSymbol(suit)}</span>
-                              </div>
-                            );
-                          })}
+    <div className="w-full h-screen bg-[#050505] flex overflow-hidden relative">
+      <MobileWarningOverlay />
+      {!isAuthenticated ? (
+        authView === 'login' ? <LoginScreen onLogin={handleLogin} onGoToRegister={() => setAuthView('register')} /> : <RegisterScreen onRegister={handleLogin} onGoToLogin={() => setAuthView('login')} />
+      ) : (
+        <>
+          {currentView === 'selection' ? (
+            <SelectionScreen scenarios={scenarios} onSelect={(s) => { setActiveScenario(s); setCurrentView('setup'); }} onCreateNew={() => setShowScenarioCreatorModal(true)} onEditScenarios={() => { setCreatorDefaultStep('manage'); setShowScenarioCreatorModal(true); }} onShowAdmin={() => setShowAdminMemberModal(true)} onLogout={handleLogout} isAdmin={isAdmin} />
+          ) : currentView === 'setup' && activeScenario ? (
+            <TrainingSetupScreen scenarioName={activeScenario.name} onStart={(goal) => { setTrainingGoal(goal); setCurrentView('trainer'); }} onBack={() => setCurrentView('selection')} />
+          ) : (
+            <>
+              <Sidebar 
+                isOpen={sidebarOpen} 
+                isPinned={sidebarPinned} 
+                onToggle={() => setSidebarOpen(!sidebarOpen)} 
+                onTogglePin={() => setSidebarPinned(!sidebarPinned)} 
+                onToggleFocusMode={() => setIsFocusMode(true)} 
+                onStopTreino={() => setShowStopModal(true)} 
+                onRestartTreino={() => setShowRestartModal(true)} 
+                onShowSpotInfo={() => setShowSpotInfoModal(true)} 
+                onShowConfig={() => setShowConfigModal(true)} 
+                history={handHistory} 
+                ranges={activeScenario?.ranges} 
+                customActions={activeScenario?.customActions} 
+                sessionElapsedSeconds={sessionElapsedSeconds} 
+                currentUser={currentUser} 
+                trainingGoal={trainingGoal}
+              />
+              <div className={`flex-1 flex flex-col items-center transition-all duration-300 ${sidebarOpen ? 'ml-80' : 'ml-0'}`}>
+                {/* Aumentado padding superior pt-16 para descer a mesa */}
+                <div className="flex-1 w-full relative flex items-center justify-center pt-16 pb-8 px-8 overflow-hidden">
+                  {/* Reduzido max-w de 900px para 820px para escala menor */}
+                  <div className="relative w-full max-w-[820px] aspect-[16/10] flex items-center justify-center select-none">
+                    <div className="absolute inset-16 border-[12px] border-[#1a1a1a] rounded-[150px] shadow-[0_40px_100px_-20px_rgba(0,0,0,1)] bg-[#080808] overflow-hidden">
+                      <div className="absolute inset-2 bg-[radial-gradient(ellipse_at_center,_#064e3b_0%,_#022c22_70%,_#000000_100%)] rounded-[130px] flex flex-col items-center justify-center gap-6">
+                        <div className="bg-black/90 px-6 py-2 rounded-full border border-emerald-500/30 flex items-center gap-2 shadow-2xl backdrop-blur-md">
+                          <span className="text-emerald-500 font-black text-[10px] tracking-widest uppercase">POT</span>
+                          <span className="text-white font-mono font-black text-lg">{(currentPot / BIG_BLIND_VALUE).toFixed(1)} BB</span>
                         </div>
-                      )}
+                        {board.length > 0 && (
+                          <div className="flex gap-2">
+                            {board.map((card, i) => (
+                              <div key={i} className="w-12 h-18 bg-white rounded-lg shadow-2xl flex flex-col items-center justify-center border border-gray-300">
+                                <span className={`text-xl font-black ${card[1] === 'h' || card[1] === 'd' ? 'text-red-600' : 'text-gray-900'}`}>{card[0]}</span>
+                                <span className={`text-2xl ${card[1] === 'h' || card[1] === 'd' ? 'text-red-600' : 'text-gray-900'}`}>{card[1]}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="absolute inset-0 w-full h-full pointer-events-none">
+                      {players.map((player, index) => {
+                        const pLayout = (TABLE_LAYOUTS[activeScenario?.playerCount as keyof typeof TABLE_LAYOUTS] || TABLE_LAYOUTS[9])[index];
+                        return (
+                          <div key={player.id} style={{ top: `${pLayout.y}%`, left: `${pLayout.x}%`, transform: 'translate(-50%, -50%)' }} className="absolute pointer-events-auto">
+                            <PlayerSeat player={player} isMain={player.positionName === activeScenario?.heroPos} bigBlindValue={BIG_BLIND_VALUE} className={pLayout.pos} timeRemaining={player.positionName === activeScenario?.heroPos ? timeRemaining : 0} maxTime={timeBankSetting !== 'OFF' ? Number(timeBankSetting) : 0} totalPlayers={activeScenario?.playerCount} />
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
+                <div className="w-full flex flex-col items-center justify-center px-4 pb-12 z-[100] min-h-[140px]">
+                  {feedback !== 'idle' ? (
+                    <div className={`py-4 px-10 rounded-2xl border font-black uppercase text-xs tracking-widest animate-in zoom-in ${feedback === 'correct' ? 'bg-emerald-600/20 border-emerald-500 text-emerald-400' : 'bg-red-600/20 border-red-500 text-red-400'}`}>
+                      {feedback === 'correct' ? 'Decisão Correta' : feedback === 'timeout' ? 'Tempo Esgotado' : 'Decisão Errada'}
+                    </div>
+                  ) : (
+                    <div className="flex gap-2 w-full max-w-[420px] px-2 items-center justify-center flex-wrap">
+                      {(activeScenario?.customActions || ['Fold', 'Raise']).map((label, idx) => (
+                        <button key={idx} onClick={() => handleActionClick(label)} style={{ backgroundColor: getActionColor(label, idx) }} className="flex-1 min-w-[100px] h-12 rounded-xl border border-white/20 text-[11px] font-black uppercase tracking-wider text-white shadow-2xl hover:brightness-110 active:scale-95 transition-all">
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="absolute inset-0 w-full h-full pointer-events-none">
-                {players.map((player, index) => (
-                  <div key={player.id} style={isMobile ? getMobilePlayerStyle(index, playerCount) : getDesktopPlayerStyle(index, playerCount)} className="absolute pointer-events-auto">
-                    <PlayerSeat player={player} isMain={player.positionName === activeScenario?.heroPos} bigBlindValue={BIG_BLIND_VALUE} timeRemaining={player.positionName === activeScenario?.heroPos ? timeRemaining : 0} maxTime={(player.positionName === activeScenario?.heroPos && timeBankSetting !== 'OFF') ? (timeBankSetting as number) : 0} totalPlayers={playerCount} isMobile={isMobile} className={`${getOrientationClass(index, isMobile, playerCount)} ${index === 0 ? (isMobile ? 'scale-[0.85]' : 'scale-[0.88]') : (isMobile ? 'scale-[0.72]' : 'scale-[0.82]')}`} />
-                  </div>
-                ))}
-              </div>
-            </div>
-        </div>
-
-        <div className="w-full flex flex-col items-center justify-center px-4 pb-6 md:pb-10 z-[100] min-h-[110px]">
-             {feedback !== 'idle' ? (
-               <div className={`py-3 px-8 rounded-xl border font-black uppercase text-[10px] tracking-widest ${ feedback === 'correct' ? 'bg-emerald-600/20 border-emerald-500 text-emerald-400' : feedback === 'timeout' ? 'bg-orange-600/20 border-orange-500 text-orange-400' : 'bg-red-600/20 border-red-500 text-red-400' }`}> {feedback === 'correct' ? 'Decisão Correta' : feedback === 'timeout' ? 'Tempo Esgotado' : 'Decisão Errada'} </div>
-             ) : renderActionButtons()}
-        </div>
-      </div>
-
-      <StopTrainingModal isOpen={showStopModal} onClose={() => setShowStopModal(false)} onConfirm={handleStopTrainingConfirm} />
-      <SessionReportModal 
-        isOpen={showReportModal} 
-        onClose={onExitToSelection} 
-        onNewTraining={onExitToSelection} 
-        history={handHistory} 
-        scenarioName={activeScenario?.name || "Treino PENTÁGONO"}
-      />
-      <RestartConfirmationModal isOpen={showRestartModal} onClose={() => setShowRestartModal(false)} onConfirm={handleRestartConfirm} />
-      <SpotInfoModal 
-        isOpen={showSpotInfoModal} 
-        onClose={() => setShowSpotInfoModal(false)} 
-        trainingName={activeScenario?.name || ""} 
-        description={activeScenario?.description}
-        videoLink={activeScenario?.videoLink}
-      />
-      <ConfigModal isOpen={showConfigModal} onClose={() => setShowConfigModal(false)} timeBank={timeBankSetting} setTimeBank={setTimeBankSetting} />
-      <ScenarioCreatorModal isOpen={showScenarioCreatorModal} scenarios={scenarios} onClose={() => setShowScenarioCreatorModal(false)} onSave={handleSaveScenario} onDelete={handleDeleteScenario} defaultStep={creatorDefaultStep} />
-      <AdminMemberModal isOpen={showAdminMemberModal} onClose={() => setShowAdminMemberModal(false)} />
+            </>
+          )}
+          <StopTrainingModal isOpen={showStopModal} onClose={() => setShowStopModal(false)} onConfirm={() => { setCurrentView('selection'); setShowStopModal(false); setShowReportModal(true); }} />
+          <SessionReportModal isOpen={showReportModal} onClose={() => setShowReportModal(false)} onNewTraining={() => { setCurrentView('selection'); setShowReportModal(false); }} history={handHistory} scenarioName={activeScenario?.name || ""} />
+          <RestartConfirmationModal isOpen={showRestartModal} onClose={() => setShowRestartModal(false)} onConfirm={() => { setHandHistory([]); setShowRestartModal(false); resetToNewHand(); }} />
+          <ConfigModal isOpen={showConfigModal} onClose={() => setShowConfigModal(false)} timeBank={timeBankSetting} setTimeBank={setTimeBankSetting} />
+          <AdminMemberModal isOpen={showAdminMemberModal} onClose={() => setShowAdminMemberModal(false)} />
+          <ScenarioCreatorModal isOpen={showScenarioCreatorModal} scenarios={scenarios} onClose={() => setShowScenarioCreatorModal(false)} onSave={(s) => setScenarios(prev => [...prev, s])} defaultStep={creatorDefaultStep} />
+        </>
+      )}
     </div>
   );
 };
