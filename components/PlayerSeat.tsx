@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Player, PlayerStatus } from '../types.ts';
 
@@ -213,7 +214,7 @@ const PlayerSeat: React.FC<PlayerSeatProps> = ({
             <div className="w-4 h-4 bg-sky-600 rounded-full border border-white/40 flex items-center justify-center relative flex-shrink-0">
               <div className="w-1.5 h-1.5 border border-white/20 rounded-full"></div>
             </div>
-            <span className="text-white text-[11px] font-black ml-1.5 leading-none">{displayBet()}</span>
+            <span className="text-white text-[11px] font-black ml-1.5 leading-none uppercase tracking-tight">{displayBet()}</span>
           </div>
         )}
       </div>

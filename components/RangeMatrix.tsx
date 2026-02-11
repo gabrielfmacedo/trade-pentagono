@@ -5,23 +5,26 @@ import { RangeData, ActionFrequency } from '../types.ts';
 const RANKS = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
 
 const CUSTOM_PALETTE = [
-  '#8b5cf6', // Violet
-  '#f59e0b', // Amber
-  '#ec4899', // Pink
-  '#06b6d4', // Cyan
-  '#f97316', // Orange
-  '#84cc16', // Lime
+  '#f59e0b', // Amber/Gold (Padrão para o primeiro Raise)
+  '#8b5cf6', // Violeta
+  '#ec4899', // Rosa
+  '#06b6d4', // Ciano
+  '#f97316', // Laranja
+  '#84cc16', // Lima
   '#6366f1', // Indigo
   '#14b8a6', // Teal
+  '#f43f5e', // Rose
+  '#0ea5e9', // Sky
 ];
 
 const getActionColor = (label: string, index: number): string => {
   const l = label.toLowerCase();
-  if (l.includes('fold')) return '#334155';
-  if (l.includes('call') || l.includes('pagar') || l === 'limp') return '#0ea5e9';
-  if (l.includes('raise') || l === 'rfi' || l.includes('3-bet') || l.includes('4-bet') || l.includes('aumentar')) return '#10b981';
-  if (l.includes('all-in') || l.includes('shove')) return '#ef4444';
+  // Cores estritamente fixas por semântica
+  if (l.includes('fold')) return '#334155'; // Slate
+  if (l.includes('all-in') || l.includes('shove')) return '#ef4444'; // Red
+  if (l.includes('call') || l.includes('pagar') || l === 'limp' || l === 'check') return '#10b981'; // Emerald
   
+  // Para qualquer outra ação (Raise com sizes, Bet, etc), usa a paleta por índice para garantir cores diferentes
   return CUSTOM_PALETTE[index % CUSTOM_PALETTE.length];
 };
 
@@ -32,7 +35,7 @@ interface RangeMatrixProps {
   customActions?: string[];
 }
 
-const RangeMatrix: React.FC<RangeMatrixProps> = ({ ranges = {}, customActions = ['Fold', 'Call', 'Raise', 'All-In'] }) => {
+const RangeMatrix: React.FC<RangeMatrixProps> = ({ ranges = {}, customActions = ['Fold', 'Raise'] }) => {
   const getCellStyles = (handKey: string) => {
     const r1 = handKey[0];
     const r2 = handKey[1];
@@ -77,8 +80,8 @@ const RangeMatrix: React.FC<RangeMatrixProps> = ({ ranges = {}, customActions = 
     }
 
     const entries = Object.entries(aggregated).sort((a, b) => {
-      if (a[0] === 'Fold') return 1;
-      if (b[0] === 'Fold') return -1;
+      if (a[0].toLowerCase().includes('fold')) return 1;
+      if (b[0].toLowerCase().includes('fold')) return -1;
       return 0;
     });
 

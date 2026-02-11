@@ -15,21 +15,32 @@ const RANKS = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
 const SUITS = ['h', 'd', 's', 'c'];
 const SCENARIO_DRAFT_KEY = 'lab11_scenario_draft';
 
-// Função para gerar ID único alfanumérico curto e robusto
+// Função para gerar ID único alfanumérico
 const generateUniqueId = () => {
   return 'SC-' + Math.random().toString(36).substring(2, 9).toUpperCase();
 };
 
 const CUSTOM_PALETTE = [
-  '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d4', '#f97316', '#84cc16', '#6366f1', '#14b8a6',
+  '#f59e0b', // Amber/Gold (Padrão para o primeiro Raise)
+  '#8b5cf6', // Violeta
+  '#ec4899', // Rosa
+  '#06b6d4', // Ciano
+  '#f97316', // Laranja
+  '#84cc16', // Lima
+  '#6366f1', // Indigo
+  '#14b8a6', // Teal
+  '#f43f5e', // Rose
+  '#0ea5e9', // Sky
 ];
 
 const getActionColor = (label: string, index: number): string => {
   const l = label.toLowerCase();
-  if (l.includes('fold')) return '#334155';
-  if (l.includes('call') || l.includes('pagar') || l === 'limp') return '#0ea5e9';
-  if (l.includes('raise') || l === 'rfi' || l.includes('3-bet') || l.includes('4-bet') || l.includes('aumentar') || l.includes('iso')) return '#10b981';
-  if (l.includes('all-in') || l.includes('shove')) return '#ef4444';
+  // Cores estritamente fixas por semântica
+  if (l.includes('fold')) return '#334155'; // Slate
+  if (l.includes('all-in') || l.includes('shove')) return '#ef4444'; // Red
+  if (l.includes('call') || l.includes('pagar') || l === 'limp' || l === 'check') return '#10b981'; // Emerald
+  
+  // Para qualquer outra ação (Raise com sizes, Bet, etc), usa a paleta por índice para garantir cores diferentes
   return CUSTOM_PALETTE[index % CUSTOM_PALETTE.length];
 };
 
@@ -56,11 +67,11 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
 
   const [heroBetSize, setHeroBetSize] = useState(2.5);
   const [opponentBetSize, setOpponentBetSize] = useState(2.2);
-  const [customActions, setCustomActions] = useState<string[]>([]);
+  const [customActions, setCustomActions] = useState<string[]>(['Fold', 'Raise']);
   const [newActionInput, setNewActionInput] = useState('');
 
   const [rangeData, setRangeData] = useState<RangeData>({});
-  const [selectedAction, setSelectedAction] = useState<string>('');
+  const [selectedAction, setSelectedAction] = useState<string>('Raise');
   const [selectedFrequency, setSelectedFrequency] = useState(100);
   const [isEraserMode, setIsEraserMode] = useState(false);
   const [lastAutosave, setLastAutosave] = useState<Date | null>(null);
@@ -124,8 +135,9 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
             setOpponents(d.opponents || []); setStackBB(d.stackBB); 
             setStackMode(d.stackMode || 'equal'); setIndividualStacks(d.individualStacks || {});
             setHeroBetSize(d.heroBetSize || 2.5); setOpponentBetSize(d.opponentBetSize || 2.2);
-            setCustomActions(d.customActions || []); setRangeData(d.rangeData || {});
+            setCustomActions(d.customActions || ['Fold', 'Raise']); setRangeData(d.rangeData || {});
             setStep(d.step || 1);
+            if (d.customActions && d.customActions.length > 0) setSelectedAction(d.customActions[0]);
           } catch (e) { console.error('Falha ao restaurar rascunho', e); }
         } else {
           localStorage.removeItem(SCENARIO_DRAFT_KEY);
@@ -171,7 +183,9 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
     setHeroBetSize(s.heroBetSize || 2.5);
     setOpponentBetSize(s.opponentBetSize || 2.2);
     setRangeData(s.ranges || {});
-    setCustomActions(s.customActions || []);
+    const actions = s.customActions && s.customActions.length > 0 ? s.customActions : ['Fold', 'Raise'];
+    setCustomActions(actions);
+    setSelectedAction(actions.includes('Raise') ? 'Raise' : actions[0]);
     setStep(1);
   };
 
@@ -180,12 +194,9 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
     const customName = window.prompt('Qual nome deseja colocar na cópia?', `${s.name} (Cópia)`);
     if (customName === null) return;
     
-    // Gerar novo ID para a cópia
     const newId = generateUniqueId();
     setCurrentId(newId);
     setName(customName || `${s.name} (Cópia)`);
-    
-    // Clonar todos os dados do cenário original
     setDescription(s.description || '');
     setVideoLink(s.videoLink || '');
     setModality(s.modality);
@@ -193,16 +204,16 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
     setAction(s.preflopAction);
     setPlayerCount(s.playerCount);
     setHeroPos(s.heroPos);
-    setOpponents(s.opponents ? [...s.opponents] : []);
+    setOpponents(s.opponents || []);
     setStackBB(s.stackBB);
     setStackMode(s.individualStacks ? 'different' : 'equal');
-    setIndividualStacks(s.individualStacks ? JSON.parse(JSON.stringify(s.individualStacks)) : {});
+    setIndividualStacks(JSON.parse(JSON.stringify(s.individualStacks || {})));
     setHeroBetSize(s.heroBetSize || 2.5);
     setOpponentBetSize(s.opponentBetSize || 2.2);
-    setRangeData(s.ranges ? JSON.parse(JSON.stringify(s.ranges)) : {});
-    setCustomActions(s.customActions ? [...s.customActions] : []);
-    
-    // Abrir imediatamente na etapa de edição 1
+    setRangeData(JSON.parse(JSON.stringify(s.ranges || {})));
+    const actions = s.customActions && s.customActions.length > 0 ? [...s.customActions] : ['Fold', 'Raise'];
+    setCustomActions(actions);
+    setSelectedAction(actions.includes('Raise') ? 'Raise' : actions[0]);
     setStep(1);
   };
 
@@ -243,7 +254,9 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
     setHeroBetSize(s.heroBetSize || 2.5);
     setOpponentBetSize(s.opponentBetSize || 2.2);
     setRangeData(JSON.parse(JSON.stringify(s.ranges || {})));
-    setCustomActions([...(s.customActions || [])]);
+    const actions = s.customActions && s.customActions.length > 0 ? [...s.customActions] : ['Fold', 'Raise'];
+    setCustomActions(actions);
+    setSelectedAction(actions.includes('Raise') ? 'Raise' : actions[0]);
   };
 
   const handleBulkNext = () => {
@@ -280,6 +293,8 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
     setBulkMode(false);
     setSelectedIds([]);
     setBulkNameSuffix('');
+    setCustomActions(['Fold', 'Raise']);
+    setSelectedAction('Raise');
   };
 
   const handleRetornar = () => {
@@ -315,7 +330,7 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
 
   const availableRangeActions = useMemo(() => {
     if (customActions.length > 0) return customActions;
-    return ['Fold', 'Call', 'Raise'].filter(a => a !== '');
+    return ['Fold', 'Raise'];
   }, [customActions]);
 
   const updateHandAction = (draft: RangeData, hand: string, actionName: string, freq: number) => {
@@ -374,9 +389,17 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
     else if (comboEntries.length > 0) { comboEntries.forEach(([_, data]) => Object.entries(data).forEach(([act, freq]) => aggregated[act] = (aggregated[act] || 0) + ((freq as number) / totalCombosCount))); }
     if (Object.keys(aggregated).length === 0) return { backgroundColor: EMPTY_CELL_BG, color: '#475569' };
     let cumulative = 0;
-    const gradientParts = Object.entries(aggregated).sort((a, b) => a[0] === 'Fold' ? 1 : b[0] === 'Fold' ? -1 : 0).map(([act, freq]) => {
+    const sortedActions = Object.entries(aggregated).sort((a, b) => {
+       const aLabel = a[0].toLowerCase();
+       const bLabel = b[0].toLowerCase();
+       if (aLabel.includes('fold')) return 1;
+       if (bLabel.includes('fold')) return -1;
+       return 0;
+    });
+    const gradientParts = sortedActions.map(([act, freq]) => {
       const start = cumulative; cumulative += (freq as number);
-      return `${getActionColor(act, availableRangeActions.indexOf(act))} ${start}% ${cumulative}%`;
+      const actionIdx = availableRangeActions.indexOf(act);
+      return `${getActionColor(act, actionIdx)} ${start}% ${cumulative}%`;
     });
     if (cumulative < 99.9) gradientParts.push(`${EMPTY_CELL_BG} ${cumulative}% 100%`);
     return { background: `linear-gradient(to right, ${gradientParts.join(', ')})`, color: (cumulative > 50 && (aggregated['Fold'] || 0) < 50) ? 'white' : '#94a3b8' };
@@ -449,12 +472,13 @@ const ScenarioCreatorModal: React.FC<ScenarioCreatorModalProps> = ({ isOpen, onC
 
   const handleFinish = () => {
     if (bulkMode) { handleBulkNext(); return; }
+    const actionsToSave = customActions.length > 0 ? customActions : ['Fold', 'Raise'];
     const newScenario: Scenario = {
       id: currentId, name: name || 'Novo Cenário', description, videoLink, modality, street, preflopAction: action,
       playerCount, heroPos, opponents, stackBB, 
       individualStacks: stackMode === 'different' ? individualStacks : undefined,
       heroBetSize, opponentBetSize: isReRaiseAction ? opponentBetSize : undefined,
-      ranges: rangeData, customActions,
+      ranges: rangeData, customActions: actionsToSave,
       updatedAt: Date.now()
     };
     if (onSave) onSave(newScenario);

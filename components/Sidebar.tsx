@@ -26,15 +26,26 @@ interface SidebarProps {
 }
 
 const CUSTOM_PALETTE = [
-  '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d4', '#f97316', '#84cc16', '#6366f1', '#14b8a6',
+  '#f59e0b', // Amber/Gold (Padrão para o primeiro Raise)
+  '#8b5cf6', // Violeta
+  '#ec4899', // Rosa
+  '#06b6d4', // Ciano
+  '#f97316', // Laranja
+  '#84cc16', // Lima
+  '#6366f1', // Indigo
+  '#14b8a6', // Teal
+  '#f43f5e', // Rose
+  '#0ea5e9', // Sky
 ];
 
 const getActionColor = (label: string, index: number): string => {
   const l = label.toLowerCase();
-  if (l.includes('fold')) return '#334155';
-  if (l.includes('call') || l.includes('pagar') || l === 'limp') return '#10b981';
-  if (l.includes('raise') || l === 'rfi' || l.includes('3-bet') || l.includes('4-bet') || l.includes('aumentar')) return '#f59e0b';
-  if (l.includes('all-in') || l.includes('shove')) return '#ef4444';
+  // Cores estritamente fixas por semântica
+  if (l.includes('fold')) return '#334155'; // Slate
+  if (l.includes('all-in') || l.includes('shove')) return '#ef4444'; // Red
+  if (l.includes('call') || l.includes('pagar') || l === 'limp' || l === 'check') return '#10b981'; // Emerald
+  
+  // Para qualquer outra ação (Raise com sizes, Bet, etc), usa a paleta por índice para garantir cores diferentes
   return CUSTOM_PALETTE[index % CUSTOM_PALETTE.length];
 };
 
@@ -55,7 +66,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   currentUser,
   history,
   ranges,
-  customActions = ['Fold', 'Call', 'Raise', 'All-In'],
+  customActions = ['Fold', 'Raise'],
   trainingGoal,
   sessionElapsedSeconds
 }) => {
