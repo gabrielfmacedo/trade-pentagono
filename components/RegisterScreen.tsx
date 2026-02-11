@@ -22,7 +22,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegister, onGoToLogin
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] flex items-center justify-center p-6 animate-in fade-in duration-700">
+    <div className="w-full min-h-screen bg-[#050505] flex items-center justify-center p-6 animate-in fade-in duration-700">
       <div className="w-full max-w-md">
         <div className="text-center mb-10 flex flex-col items-center">
           {/* Ícone Pentágono de Registro Minimalista com Ficha */}
