@@ -12781,7 +12781,6 @@ const SYSTEM_DEFAULT_SCENARIOS: Scenario[] = [
     ],
     "updatedAt": 1770433688664
   }
-]
 ];
 
 const App: React.FC = () => {
