@@ -88,7 +88,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const incorrectCount = history.filter(h => h.status === 'incorrect').length;
   const precision = history.length > 0 ? Math.round((correctCount / history.length) * 100) : 0;
 
-  const isAdmin = currentUser === 'gabrielfmacedo@ymail.com';
+  const isAdmin = currentUser === 'gabrielfpoker@gmail.com';
 
   let progressPercent = 0;
   let progressText = "";
