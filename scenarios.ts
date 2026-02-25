@@ -12666,5 +12666,5 @@ export const SYSTEM_DEFAULT_SCENARIOS: Scenario[] = [
       "ALL-IN"
     ],
     "updatedAt": 1770433688664
-  }
+  },
 ];
